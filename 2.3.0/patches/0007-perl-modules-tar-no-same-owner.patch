@@ -1,0 +1,11 @@
+--- omd/packages/perl-modules/lib/BuildHelper.pm
++++ omd/packages/perl-modules/lib/BuildHelper.pm
+@@ -645,7 +645,7 @@
+     if($file =~ m/\.zip$/gmx) {
+         cmd("unzip $file");
+     } else {
+-        cmd("tar zxf $file");
++        cmd("tar zxf $file --no-same-owner");
+     }
+     my $dir = $file;
+     $dir =~  s/(\.tar\.gz|\.tgz|\.zip)//g;

@@ -1,173 +1,95 @@
+# check-mk-arm
 
-## Code ist currently being refactored. 
+Builds **Checkmk Raw** `.deb` packages for **arm64 / aarch64**.
 
-This code is forked from https://github.com/chrisss404/check-mk-arm
+Checkmk publishes no ARM server packages for any version — every
+`check-mk-raw-*.deb` on `download.checkmk.com` is `amd64`, and every
+`checkmk/check-mk-raw` Docker Hub tag is a single `linux/amd64` manifest.
+Checkmk's position is that ARM server builds are not planned; only the *agent
+controller* has gained aarch64 support (werk #19275). So the package has to be
+built from source with a small set of architecture patches.
 
-I will try to refactor and update it for my own use cases.
-The build instructions will be documented in the future. Currently I am working on updated builds. 
+This is a fork of [FloTheSysadmin/check-mk-arm](https://github.com/FloTheSysadmin/check-mk-arm),
+which descends from [chrisss404/check-mk-arm](https://github.com/chrisss404/check-mk-arm).
+Both stopped at Checkmk 2.2.
 
-### Tips & General Information
+| Directory | Checkmk | Build base            | Status                                  |
+| --------- | ------- | --------------------- | --------------------------------------- |
+| `2.2.0/`  | 2.2.x   | `debian:bookworm`     | inherited from upstream, kept for reference (untouched) |
+| `2.3.0/`  | 2.3.0p49| `debian:bookworm-slim`| rewritten                               |
 
-##### Errors during installation
+Checkmk 2.5+ is out of scope: its Bazel `pkg_deb` hardcodes
+`architecture = "amd64"`, there is no `aarch64-linux-gnu` Bazel platform, and the
+hermetic GCC/Rust toolchains are x86_64-only.
 
-````
-dpkg: error processing package check-mk-raw-* (--install):
- dependency problems - leaving unconfigured
-Errors were encountered while processing:
- check-mk-raw-*
-````
-That's perfectly fine. Run `apt-get install -f` and the installation should complete successfully.
+## Building
 
-##### Raspberry Pi: use an HDD/SSD when running Checkmk
+Requires an **arm64 host with Docker**. Nothing is installed on the host; the
+whole toolchain lives in the build image. Budget several hours for a cold build
+and tens of GB of disk.
 
-The `rrdcached` issues many small write requests which may harm your SD card, see: https://forum.checkmk.com/t/checkmk-on-raspberry-pi/27760/4
+```bash
+./run.sh image      # build the builder image
+./run.sh up         # start the long-lived build container
+./run.sh build      # run every stage
+./run.sh status     # where things are, and how long each stage took
+```
 
-##### Raspberry Pi: reduce the number of apache processes
+Run `./run.sh watch` in a second terminal: it samples disk and memory every two
+minutes and stops the build before either filesystem fills.
 
-Go to `Setup` > `General` > `Global settings` > `Site Management` and reduce the number at `Apache process tuning` to 5.
+The finished package lands in `/data/checkmk/work/<version>/debs/` together with
+a `.sha256`.
 
-##### Oracle Cloud Infrastructure: access web interface
+### Iterating
 
-In case of issues accessing the Checkmk web interface, check the pre-defined iptables rules, see: https://blog.meinside.dev/When-Oracle-Clouds-Ubuntu-Instance-Doesnt-Accept-Connections-to-Ports-Other-than-22/
+The source tree, the Bazel cache and all downloads are bind-mounted from
+`/data`, and `patches/` plus `build.sh` are mounted read-only straight from this
+worktree — so editing a patch takes effect immediately, with no image rebuild
+and no re-download.
 
-### Build Checkmk from sources
+```bash
+./run.sh build --only patch,build-deb   # run selected stages
+./run.sh build --force patch            # re-run a stage marked done
+./run.sh build --list                   # show stage state
+./run.sh reset-src                      # drop the source tree, keep tarballs + caches
+./run.sh sh                             # shell inside the build container
+```
 
-    # build a specific version of Checkmk targeting Debian 32-bit, e.g.: 2.2.0p1
-    INSTALL_DEPENDENCIES=1 bash build_check_mk_debian_32bit.sh <version>
+Stages are marked in `state/`, so a build that dies after five hours resumes
+where it stopped rather than starting over.
 
-    # build a specific version of Checkmk targeting Ubuntu 64-bit, e.g.: 2.1.0p21
-    INSTALL_DEPENDENCIES=1 bash build_check_mk_ubuntu_64bit.sh <version>
+## How it works
 
-### Install Checkmk to your device
+1. **fetch-src** — download the official `check-mk-raw-<ver>.cre.tar.gz`.
+2. **fetch-donor-deb** — download the amd64 *Cloud* edition package. The Windows
+   agent binaries cannot be built on Linux/ARM, so they are lifted from there;
+   this is what the upstream ARM recipe has always done.
+3. **seed-distdir** — repackage snap7 from its SourceForge `.7z` (upstream ships
+   no `.tar.gz` since 1.4.2 and Checkmk's own mirror is unreachable from
+   outside), adding an aarch64 build profile, and hand it to Bazel via
+   `--distdir`.
+4. **patch** — apply `2.3.0/patches/` in `series` order. Each patch is dry-run
+   immediately before being applied and the first failure aborts the build.
+5. **build-deb** — `debuild` in `omd/`, which compiles everything and produces
+   the package.
 
-Build or get a deb package that targets your system and install it as shown below, then follow the [official user guide](https://docs.checkmk.com/latest/en/) to set everything up.
+See [`2.3.0/patches/README.md`](2.3.0/patches/README.md) for what each patch does
+and when it can be dropped. Patches numbered `0001-0099` are genuine
+architecture fixes and are suitable to offer upstream to Checkmk.
 
-    dpkg -i check-mk-raw-*.deb
-    apt-get update && apt-get install -f
+## Consuming the result
 
-### Patches
+[`checkmk_build`](https://gitlab.com/joeri2821-gh14/joeri2821-docker-images/checkmk)
+wraps the package into a runnable Docker image. The base image must match the
+distro the package was built for (2.3 → bookworm, 2.4 → trixie), because the
+dependencies are distro-specific.
 
-#### Allow empty pathhash items
+## Caveats
 
-    cp scripts/create_build_environment_variables.py scripts/create_build_environment_variables.py_v2
-    vim scripts/create_build_environment_variables.py_v2
-    -    if checksums and all(v == "--" for k, v in checksums):
-    -        raise RuntimeError(
-    -            "All provided 'pathhash' items result in emtpy hashes."
-    -            " This is considerd to be an error."
-    -        )
-    diff -u scripts/create_build_environment_variables.py scripts/create_build_environment_variables.py_v2 > ../create_build_environment_variables-allow-empty-pathhash.patch
-
-#### Use official python mirror
-
-    cp defines.make defines.make_v2
-    vim defines.make_v2
-    -# By default our internal Python mirror is used.
-    -# To use the official Python mirror, please export `USE_EXTERNAL_PIPENV_MIRROR=true`.
-    -EXTERNAL_PYPI_MIRROR := https://pypi.python.org/simple
-    -INTERNAL_PYPI_MIRROR :=  https://devpi.lan.tribe29.com/root/pypi
-    -
-    -ifeq (true,${USE_EXTERNAL_PIPENV_MIRROR})
-    -PIPENV_PYPI_MIRROR  := $(EXTERNAL_PYPI_MIRROR)
-    -else
-    -PIPENV_PYPI_MIRROR  := $(INTERNAL_PYPI_MIRROR)
-    -endif
-    +PIPENV_PYPI_MIRROR := https://pypi.python.org/simple
-    diff -u defines.make defines.make_v2 > ../defines.make-use-official-python-mirror.patch
-
-#### Fix heirloom-mailx source url
-
-    cp omd/packages/heirloom-mailx/heirloom-mailx_http.bzl omd/packages/heirloom-mailx/heirloom-mailx_http.bzl_v2
-    vim omd/packages/heirloom-mailx/heirloom-mailx_http.bzl_v2
-    -            "https://ftp.debian.org/debian/pool/main/h/heirloom-mailx/heirloom-mailx_" + HEIRLOOMMAILX_VERSION + ".orig.tar.gz",
-    -            "https://artifacts.lan.tribe29.com/repository/upstream-archives/heirloom-mailx_" + HEIRLOOMMAILX_VERSION + ".orig.tar.gz",
-    +            "http://archive.ubuntu.com/ubuntu/pool/universe/h/heirloom-mailx/heirloom-mailx_" + HEIRLOOMMAILX_VERSION + ".orig.tar.gz",
-    diff -u omd/packages/heirloom-mailx/heirloom-mailx_http.bzl omd/packages/heirloom-mailx/heirloom-mailx_http.bzl_v2 > ../heirloom-mailx-fix-source-url.patch
-
-#### Adapt makefile target ran-npm
-
-    cp Makefile Makefile_v2
-    vim Makefile_v2
-    -        npm --version | grep "^$(NPM_VERSION)\." >/dev/null 2>&1
-    -        node --version | grep "^v$(NODEJS_VERSION)\." >/dev/null 2>&1
-    -        npm ci --yes --audit=false --unsafe-perm $$REGISTRY
-    +        npm install
-    diff -u Makefile Makefile_v2 > ../Makefile-adapt-ran-npm-target.patch
-
-#### Reduce webpack memory consumption
-
-    cp Makefile Makefile_v2
-    vim Makefile_v2
-    +.ran-webpack: export NODE_OPTIONS := --max-old-space-size=2048
-    diff -u Makefile Makefile_v2 > ../Makefile-reduce-webpack-memory-consumption.patch
-
-#### Remove module navicli
-
-    cp omd/Makefile omd/Makefile_v2
-    vim omd/Makefile_v2
-    -    navicli \
-    diff -u omd/Makefile omd/Makefile_v2 > ../omd-Makefile-remove-module-navicli.patch
-
-#### Enable no-semantic-interposition compiler flag for python build
-
-    cp omd/packages/Python/Python.make omd/packages/Python/Python.make_v2
-    vim omd/packages/Python/Python.make_v2
-    +	        CFLAGS="${CFLAGS} -fno-semantic-interposition" \
-    -	        LDFLAGS="-Wl,--rpath,/omd/versions/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/lib $(PACKAGE_OPENSSL_LDFLAGS)"
-    +	        LDFLAGS="-Wl,--rpath,/omd/versions/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/lib -fno-semantic-interposition $(PACKAGE_OPENSSL_LDFLAGS)"
-    diff -u omd/packages/Python/Python.make omd/packages/Python/Python.make_v2 > ../python-make-add-fno-semantic-interposition.patch
-
-#### Set system architecture to aarch64 in python build
-
-    cp omd/packages/Python/Python.make omd/packages/Python/Python.make_v2
-    vim omd/packages/Python/Python.make_v2
-    -PYTHON_SYSCONFIGDATA := _sysconfigdata__linux_x86_64-linux-gnu.py
-    +PYTHON_SYSCONFIGDATA := _sysconfigdata__linux_aarch64-linux-gnu.py
-    diff -u omd/packages/Python/Python.make omd/packages/Python/Python.make_v2 > ../python-make-set-aarch64-architecture.patch
-
-#### Set system architecture to arm in python build
-
-    cp omd/packages/Python/Python.make omd/packages/Python/Python.make_v2
-    vim omd/packages/Python/Python.make_v2
-    -PYTHON_SYSCONFIGDATA := _sysconfigdata__linux_x86_64-linux-gnu.py
-    +PYTHON_SYSCONFIGDATA := _sysconfigdata__linux_arm-linux-gnueabihf.py
-    diff -u omd/packages/Python/Python.make omd/packages/Python/Python.make_v2 > ../python-make-set-arm-architecture.patch
-
-#### Explicitly link against libatomic in protobuf build
-
-    cp omd/packages/protobuf/protobuf.make omd/packages/protobuf/protobuf.make_v2
-    vim omd/packages/protobuf/protobuf.make_v2
-    -	    echo -e '\nprotoc-static: $(protoc_OBJECTS) $(protoc_DEPENDENCIES) $(EXTRA_protoc_DEPENDENCIES)\n\tg++ -pthread -DHAVE_PTHREAD=1 -DHAVE_ZLIB=1 -Wall -Wno-sign-compare -static-libgcc -static-libstdc++ -s -o protoc google/protobuf/compiler/main.o -lpthread ./.libs/libprotoc.a ./.libs/libprotobuf.a' >> Makefile && \
-    +	    echo -e '\nprotoc-static: $(protoc_OBJECTS) $(protoc_DEPENDENCIES) $(EXTRA_protoc_DEPENDENCIES)\n\tg++ -pthread -DHAVE_PTHREAD=1 -DHAVE_ZLIB=1 -Wall -Wno-sign-compare -static-libgcc -static-libstdc++ -s -o protoc google/protobuf/compiler/main.o -lpthread ./.libs/libprotoc.a ./.libs/libprotobuf.a -latomic' >> Makefile && \
-    diff -u omd/packages/protobuf/protobuf.make omd/packages/protobuf/protobuf.make_v2 > ../protobuf-make-add-latomic.patch
-
-#### Remove pbr from pipfile
-
-    cp Pipfile Pipfile_v2
-    vim Pipfile_v2
-    -pbr = "==5.11.0"  # needed by jira
-    diff -u Pipfile Pipfile_v2 > ../pipfile-remove-pbr.patch
-
-#### Remove playwright from pipfile
-
-    cp Pipfile Pipfile_v2
-    vim Pipfile_v2
-    -playwright = "==1.30.0"  # used for in-browser testing
-    diff -u Pipfile Pipfile_v2 > ../pipfile-remove-playwright.patch
-
-#### Update pymssql version in pipfile
-
-    cp Pipfile Pipfile_v2
-    vim Pipfile_v2
-    -pymssql = "==2.2.7"  # needed by check_sql active check
-    +pymssql = "==2.2.8"  # needed by check_sql active check
-    diff -u Pipfile Pipfile_v2 > ../pipfile-update-pymssql.patch
-
-#### Fix xmlsec1 source url
-
-    cp omd/packages/xmlsec1/xmlsec1_http.bzl omd/packages/xmlsec1/xmlsec1_http.bzl_v2
-    vim omd/packages/xmlsec1/xmlsec1_http.bzl_v2
-    -            "https://www.aleksey.com/xmlsec/download/xmlsec1-" + XMLSEC1_VERSION + ".tar.gz",
-    -            "https://artifacts.lan.tribe29.com/repository/upstream-archives/xmlsec1-" + XMLSEC1_VERSION + ".tar.gz",
-    +            "https://www.aleksey.com/xmlsec/download/older-releases/xmlsec1-" + XMLSEC1_VERSION + ".tar.gz",
-    diff -u omd/packages/xmlsec1/xmlsec1_http.bzl omd/packages/xmlsec1/xmlsec1_http.bzl_v2 > ../xmlsec1-fix-source-url.patch
+- Community-built and **not supported or endorsed by Checkmk**. Do not report
+  problems with these packages to Checkmk.
+- The bundled **Windows agent binaries are x86-64** by construction. They are
+  shipped for deployment to Windows hosts and never run on the server.
+- **`navicli`** (EMC storage) is dropped — prebuilt x86-only binaries with no
+  aarch64 equivalent.

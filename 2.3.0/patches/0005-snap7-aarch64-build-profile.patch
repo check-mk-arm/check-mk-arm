@@ -1,0 +1,11 @@
+--- omd/packages/snap7/BUILD.snap7.bazel
++++ omd/packages/snap7/BUILD.snap7.bazel
+@@ -15,7 +15,7 @@
+     name = "snap7",
+     args = [
+         "-j4",
+-        "-C build/unix -f x86_64_linux.mk",
++        "-C build/unix -f aarch64_linux.mk",
+         "LibInstall=$INSTALLDIR",
+     ],
+     lib_source = ":all_srcs",

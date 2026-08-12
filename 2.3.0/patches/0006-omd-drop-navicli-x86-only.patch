@@ -1,0 +1,10 @@
+--- omd/Makefile
++++ omd/Makefile
+@@ -46,7 +46,6 @@
+     nagvis \
+     nrpe \
+     omd \
+-    navicli \
+     pnp4nagios \
+     maintenance \
+     patch \
