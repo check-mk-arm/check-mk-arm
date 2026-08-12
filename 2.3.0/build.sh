@@ -244,8 +244,7 @@ do_build_deb() {
 		--preserve-envvar="CARGO_HOME" \
 		--preserve-envvar="USE_EXTERNAL_PIPENV_MIRROR" \
 		--preserve-envvar="PIP_BREAK_SYSTEM_PACKAGES" \
-		--prepend-path="$CARGO_HOME/bin" \
-		--prepend-path=/usr/local/bin \
+		--prepend-path="$CARGO_HOME/bin:/usr/local/bin" \
 		--set-envvar EDITION=raw \
 		--no-lintian \
 		-i\.git -I\.git \
