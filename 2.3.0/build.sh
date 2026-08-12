@@ -71,7 +71,7 @@ export USE_EXTERNAL_PIPENV_MIRROR=true
 # rejects it outright.
 export BAZEL_EXTRA_ARGS="${BAZEL_EXTRA_ARGS:---jobs=3 --local_cpu_resources=3 --local_ram_resources=11000 --disk_cache=/root/.cache/bazel-disk --distdir=$DISTDIR}"
 
-STAGES=(fetch-src unpack-src fetch-donor-deb seed-distdir patch
+STAGES=(fetch-src unpack-src fetch-donor-deb seed-distdir seed-perl-modules patch
 	windows-artifacts venv build-deb collect)
 
 # ------------------------------------------------------------------ stages ---
@@ -142,6 +142,16 @@ do_seed_distdir() {
 	elif [ "$sha" != "$SNAP7_TARBALL_SHA256" ]; then
 		die "snap7 repack sha changed: got $sha want $SNAP7_TARBALL_SHA256"
 	fi
+}
+
+# ~250 CPAN tarballs are pinned at exact versions, but many of the public URLs
+# point at www.cpan.org/modules/by-module/, which only serves each
+# distribution's *current* release — so every pinned older version 404s. Rather
+# than patch 250 URLs, resolve them against MetaCPAN/BackPAN once and drop them
+# in the distdir, which Bazel checks (by name and sha256) before any download.
+do_seed_perl_modules() {
+	python3 /opt/build-mk/lib/seed-perl-modules.py \
+		"$SRC/omd/packages/perl-modules/perl-modules_http.bzl" "$DISTDIR"
 }
 
 do_patch() {
