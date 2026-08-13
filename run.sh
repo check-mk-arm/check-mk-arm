@@ -3,8 +3,9 @@
 #
 # The build itself runs entirely inside a container; nothing is installed on the
 # host. The container is long-lived and the source tree, caches and outputs are
-# all bind-mounted from /data, which is what makes the debug loop fast: edit a
-# patch on the host, re-run in the container, no image rebuild and no re-download.
+# all bind-mounted from $CMK_DATA (default /data/checkmk), which is what makes
+# the debug loop fast: edit a patch on the host, re-run in the container, no
+# image rebuild and no re-download.
 #
 #   ./run.sh image           build the builder image
 #   ./run.sh up              start the long-lived build container
@@ -29,20 +30,27 @@ case "$MINOR" in
 esac
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATA=/data/checkmk
+# Everything the build reads or writes lives under $DATA. It is a variable so a
+# CI runner, which has no /data, can point it at its own scratch space
+# (CMK_DATA=$RUNNER_TEMP/cmk) without any other change.
+DATA="${CMK_DATA:-/data/checkmk}"
 WORK="$DATA/work/$VERSION"
 HOMEDIR="$DATA/home/$VERSION"
 IMAGE="cmk-arm-build:${MINOR}-${DISTRO}"
 CONTAINER="cmk-build-${VERSION}"
 
 # Leave a core spare so the host stays responsive, and cap memory so an OOM
-# kills the build rather than sshd — this host has 23 GB and no swap.
+# kills the build rather than sshd — this host has 23 GB and no swap. The
+# GitHub arm64 runner has 4 vCPU and only 16 GB, so CI lowers MEMORY to 13g;
+# peak measured RSS is 5.3 GiB, so the ceiling is a guard rail, not a budget.
 CPUS="${CPUS:-3.5}"
 MEMORY="${MEMORY:-18g}"
 
-# Abort thresholds for `watch`, in KiB.
-MIN_DATA_KB=$((10 * 1024 * 1024))
-MIN_ROOT_KB=$((5 * 1024 * 1024))
+# Abort thresholds for `watch`, in KiB. Overridable because they assume / and
+# $DATA are separate filesystems, which is true on the build box and false on a
+# runner (where `watch` is not used at all).
+MIN_DATA_KB="${MIN_DATA_KB:-$((10 * 1024 * 1024))}"
+MIN_ROOT_KB="${MIN_ROOT_KB:-$((5 * 1024 * 1024))}"
 
 die() { echo "!!! $*" >&2; exit 1; }
 
@@ -150,7 +158,8 @@ cmd_status() {
 	echo "image     $IMAGE"
 	echo "container $CONTAINER $(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null || echo '(absent)')"
 	echo
-	df -h / /data | sed 's/^/  /'
+	# / and $DATA are one filesystem on a runner; drop the duplicate row.
+	{ df -h / "$DATA" 2>/dev/null || df -h /; } | awk 'NR == 1 || !seen[$0]++' | sed 's/^/  /'
 	echo
 	for d in "$WORK" "$WORK/distdir" "$WORK/debs" "$HOMEDIR/.cache"; do
 		[ -e "$d" ] && printf '  %-52s %s\n' "$d" "$(du -sh "$d" 2>/dev/null | cut -f1)"
@@ -172,7 +181,7 @@ cmd_watch() {
 	while :; do
 		local root_kb data_kb
 		root_kb=$(df --output=avail -k / | tail -1)
-		data_kb=$(df --output=avail -k /data | tail -1)
+		data_kb=$(df --output=avail -k "$DATA" | tail -1)
 
 		printf '%s root=%dG data=%dG cache=%s tree=%s%s\n' \
 			"$(date +%FT%T)" $((root_kb / 1048576)) $((data_kb / 1048576)) \
@@ -200,7 +209,7 @@ down) shift; cmd_down "$@" ;;
 status) shift; cmd_status "$@" ;;
 watch) shift; cmd_watch "$@" ;;
 *)
-	sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+	awk 'NR > 1 { if (!/^#/) exit; sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 	exit 1
 	;;
 esac
