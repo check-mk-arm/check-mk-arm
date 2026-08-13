@@ -27,7 +27,10 @@ fmt_dur() { # seconds -> "1h 02m 03s"
 # output only lived in a detached exec.
 start_logging() {
 	mkdir -p "$LOGDIR"
-	LOG="$LOGDIR/build-${VERSION}-$(date +%Y%m%d-%H%M%S).log"
+	# The PID matters: two runs started in the same second would otherwise share
+	# a log file, and anything watching for the completion marker would see the
+	# first run's and think the second had finished too.
+	LOG="$LOGDIR/build-${VERSION}-$(date +%Y%m%d-%H%M%S)-$$.log"
 	exec > >(tee -a "$LOG") 2>&1
 	trap 'rc=$?; log "EXIT rc=$rc after $(fmt_dur $SECONDS) — log: $LOG"; exit $rc' EXIT
 	log "logging to $LOG"

@@ -45,8 +45,17 @@ SNAP7_TARBALL_SHA256="${SNAP7_TARBALL_SHA256:-aa675dfc77a057d99f08254a14217eb172
 # ftpmirror.gnu.org, a redirector that regularly lands on a broken mirror
 # ("GET returned 502 Bad Gateway"); ftp.gnu.org itself is stable.
 # Format: filename|sha256|url   (sha256 must match the pin in package_versions.bzl)
+# heirloom-mailx's only public URL is ftp.nl.debian.org, whose certificate no
+# longer matches the hostname, so Bazel refuses it: "SSLHandshakeException: No
+# subject alternative DNS name matching ftp.nl.debian.org found".
+# archive.debian.org serves the identical tarball over valid TLS.
 EXTRA_SEEDS=(
 	"patch-2.7.6.tar.gz|8cf86e00ad3aaa6d26aca30640e86b0e3e1f395ed99f189b06d4c9f74bc58a4e|https://ftp.gnu.org/gnu/patch/patch-2.7.6.tar.gz"
+	"heirloom-mailx_12.5.orig.tar.gz|015ba4209135867f37a0245d22235a392b8bbed956913286b887c2e2a9a421ad|https://archive.debian.org/debian/pool/main/h/heirloom-mailx/heirloom-mailx_12.5.orig.tar.gz"
+	# aleksey.com/xmlsec/download/older-releases/ now answers 403 Forbidden.
+	# The identical tarball (checksum verified against package_versions.bzl) is
+	# published on the project's GitHub releases.
+	"xmlsec1-1.2.37.tar.gz|5f8dfbcb6d1e56bddd0b5ec2e00a3d0ca5342a9f57c24dffde5c796b2be2871c|https://github.com/lsh123/xmlsec/releases/download/xmlsec-1_2_37/xmlsec1-1.2.37.tar.gz"
 )
 
 DEBFULLNAME="${DEBFULLNAME:-Checkmk ARM64 build}"
