@@ -128,11 +128,15 @@ cmd_logs() {
 }
 
 cmd_reset_src() {
-	local src="$WORK/check-mk-raw-${VERSION}.cre"
-	echo "removing $src and its downstream stage markers"
+	echo "removing the source tree and its downstream stage markers"
 	echo "keeping: source tarball, donor deb, distdir/, /root caches"
-	rm -rf "$src" "$src.unpacking"
-	rm -f "$WORK/state"/{unpack-src,patch,windows-artifacts,venv,build-deb,collect}.done
+	# Must run inside the container: the tree is written by root there, so a
+	# host-side rm as an unprivileged user fails on every file.
+	docker exec "$CONTAINER" bash -lc "
+		rm -rf /opt/build-mk/check-mk-raw-${VERSION}.cre \
+		       /opt/build-mk/check-mk-raw-${VERSION}.cre.unpacking
+		rm -f /opt/build-mk/state/{unpack-src,patch,windows-artifacts,venv,build-deb,collect}.done
+	" || die "reset failed — is the container running? ($0 up)"
 	echo "done"
 }
 
