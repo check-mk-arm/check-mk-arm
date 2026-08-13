@@ -84,19 +84,24 @@ stage() { # stage <name> <cmd...>
 #     reverse-apply.
 apply_patches() { # apply_patches <src-dir> <patch-dir>
 	local src="$1" pdir="$2"
-	local series="$pdir/series" n=0 out p
+	local series="$pdir/series" applied="$src/.arm-patches-applied"
+	local n=0 skipped=0 out p
 
 	[ -d "$src" ] || die "source tree missing: $src"
 	[ -f "$series" ] || die "no series file at $series"
-
-	if [ -f "$src/.arm-patches-applied" ]; then
-		log "patches already applied to $src"
-		return 0
-	fi
+	touch "$applied"
 
 	while IFS= read -r p || [ -n "$p" ]; do
 		case "$p" in '' | '#'*) continue ;; esac
 		[ -f "$pdir/$p" ] || die "series references a patch that does not exist: $p"
+
+		# Tracking per patch rather than with a single marker means adding a
+		# patch mid-build applies just that one, instead of forcing a full
+		# reset (and the hours of rebuilding that implies).
+		if grep -qxF "$p" "$applied"; then
+			skipped=$((skipped + 1))
+			continue
+		fi
 
 		if ! out=$(patch -d "$src" -p0 -l --force --dry-run <"$pdir/$p" 2>&1); then
 			log "PATCH FAILED (dry-run): $p"
@@ -107,12 +112,12 @@ apply_patches() { # apply_patches <src-dir> <patch-dir>
 		patch -d "$src" -p0 -l --force --no-backup-if-mismatch <"$pdir/$p" >/dev/null ||
 			die "$p passed dry-run but failed to apply — tree may be inconsistent"
 
+		printf '%s\n' "$p" >>"$applied"
 		n=$((n + 1))
 		log "  patch ok: $p"
 	done <"$series"
 
-	touch "$src/.arm-patches-applied"
-	log "applied $n patches from $series"
+	log "applied $n patches ($skipped already applied) from $series"
 }
 
 # ---------------------------------------------------------------- fetching ---

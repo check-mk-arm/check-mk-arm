@@ -1,0 +1,13 @@
+--- omd/packages/nagios/nagios_http.bzl
++++ omd/packages/nagios/nagios_http.bzl
+@@ -18,6 +18,10 @@
+         ],
+         patch_args = ["-p1"],
+         patch_tool = "patch",
++        patch_cmds = [
++            "find . -name config.guess | xargs -r -I% cp -f /usr/share/misc/config.guess %",
++            "find . -name config.sub | xargs -r -I% cp -f /usr/share/misc/config.sub %",
++        ],
+         urls = [
+             "https://assets.nagios.com/downloads/nagioscore/releases/" + filename,
+             UPSTREAM_MIRROR_URL + "/CMK-29802/" + filename,
