@@ -40,6 +40,15 @@ SNAP7_TARBALL="$DISTDIR/snap7-${SNAP7_VERSION}.tar.gz"
 # value it computed so it can be pinned here and in the snap7 patch.
 SNAP7_TARBALL_SHA256="${SNAP7_TARBALL_SHA256:-aa675dfc77a057d99f08254a14217eb1728bde663324c2e622fd1b17f88bf12e}"
 
+# Upstream tarballs whose primary URL is unreliable, seeded into the distdir so
+# the build does not depend on them at all. patch-2.7.6 is fetched from
+# ftpmirror.gnu.org, a redirector that regularly lands on a broken mirror
+# ("GET returned 502 Bad Gateway"); ftp.gnu.org itself is stable.
+# Format: filename|sha256|url   (sha256 must match the pin in package_versions.bzl)
+EXTRA_SEEDS=(
+	"patch-2.7.6.tar.gz|8cf86e00ad3aaa6d26aca30640e86b0e3e1f395ed99f189b06d4c9f74bc58a4e|https://ftp.gnu.org/gnu/patch/patch-2.7.6.tar.gz"
+)
+
 DEBFULLNAME="${DEBFULLNAME:-Checkmk ARM64 build}"
 DEBEMAIL="${DEBEMAIL:-nobody@example.invalid}"
 
@@ -98,6 +107,11 @@ do_fetch_donor_deb() {
 # The tar flags are what make the output byte-reproducible, so the sha256 can be
 # pinned in a patch instead of recomputed on every build.
 do_seed_distdir() {
+	seed_extras
+	seed_snap7
+}
+
+seed_snap7() {
 	if [ -f "$SNAP7_TARBALL" ] && [ -n "$SNAP7_TARBALL_SHA256" ]; then
 		local have
 		have=$(sha256sum "$SNAP7_TARBALL" | cut -d' ' -f1)
@@ -142,6 +156,14 @@ do_seed_distdir() {
 	elif [ "$sha" != "$SNAP7_TARBALL_SHA256" ]; then
 		die "snap7 repack sha changed: got $sha want $SNAP7_TARBALL_SHA256"
 	fi
+}
+
+seed_extras() {
+	local entry name sha url
+	for entry in "${EXTRA_SEEDS[@]}"; do
+		IFS='|' read -r name sha url <<<"$entry"
+		fetch "$url" "$DISTDIR/$name" "$sha"
+	done
 }
 
 # ~250 CPAN tarballs are pinned at exact versions, but many of the public URLs
