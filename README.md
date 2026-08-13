@@ -93,3 +93,29 @@ dependencies are distro-specific.
   shipped for deployment to Windows hosts and never run on the server.
 - **`navicli`** (EMC storage) is dropped — prebuilt x86-only binaries with no
   aarch64 equivalent.
+
+## Measured build cost (4x Neoverse-N1, 23 GB RAM, no swap)
+
+| | Cold | Warm (fresh source tree, populated Bazel cache) |
+| --- | --- | --- |
+| Wall clock | ~2 h 45 m of compute across the debugging run | **19 minutes** |
+| Peak container RSS | 5.3 GiB | 5.3 GiB |
+| Bazel cache | 8.5 GB | 8.5 GB (reused) |
+| Source tree after build | 6.0 GB | 6.0 GB |
+| distdir | 12 MB | 12 MB |
+| Builder image | 8.0 GB | — |
+| Output package | 195 MB | 194 MB |
+
+The single most expensive item is `grpcio`, which has no aarch64 wheel and takes
+~35 minutes to compile — twice, because Bazel builds python3-modules in both the
+target and exec configurations.
+
+Note the two packages differ in size: the build is **not** byte-reproducible
+(timestamps and archive ordering), so do not diff checksums across builds.
+
+**Implication for CI:** a warm build is ~19 minutes, so a runner with a
+persistent volume for `/root/.cache` and `distdir/` is sufficient; no dedicated
+long-lived machine is needed. Budget ~25 GB for the cache plus the source tree,
+and note that changing anything Bazel sees as an action input — notably `PATH`,
+which `run-bazel-build.sh` forwards via `--action_env` — invalidates the whole
+cache and forces a cold build.
