@@ -12,3 +12,4 @@
 0101-python3-modules-public-pypi.patch
 0110-nagios-modern-config-guess.patch
 0111-pnp4nagios-modern-config-guess.patch
+0300-check_mk-idempotent-check-rename.patch

@@ -1,0 +1,11 @@
+--- omd/packages/check_mk/check_mk.make
++++ omd/packages/check_mk/check_mk.make
+@@ -90,7 +90,7 @@
+ 	$(MKDIR) $(CHECK_MK_INSTALL_DIR)/share/check_mk/checks
+ 	install -m 644 $(REPO_PATH)/cmk/base/legacy_checks/* $(CHECK_MK_INSTALL_DIR)/share/check_mk/checks
+ 	rm $(CHECK_MK_INSTALL_DIR)/share/check_mk/checks/__init__.py
+-	find $(CHECK_MK_INSTALL_DIR)/share/check_mk/checks -type f | sed -e 'p;s~.py$$~~' | xargs -n2 mv
++	find $(CHECK_MK_INSTALL_DIR)/share/check_mk/checks -type f -name '*.py' | sed -e 'p;s~.py$$~~' | xargs -r -n2 mv
+ 
+ 	$(MKDIR) $(CHECK_MK_INSTALL_DIR)/share/check_mk/notifications
+ 	install -m 755 $(REPO_PATH)/notifications/* $(CHECK_MK_INSTALL_DIR)/share/check_mk/notifications
