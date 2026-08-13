@@ -75,15 +75,23 @@ same `./run.sh` on GitHub's free `ubuntu-24.04-arm` runner (4 vCPU, 16 GB,
 | Trigger | Result |
 | --- | --- |
 | push to `ci/**` | package kept as a workflow artifact |
-| release published | artifact, **and** the `.deb` + `.sha256` attached to the release |
-| `workflow_dispatch` | artifact, for any version you name |
+| `workflow_dispatch` | artifact, for any version you name, and optionally the release |
 
 The build logs are uploaded as an artifact too, on success or failure.
 
-To cut a release, publish a GitHub release whose tag is the Checkmk version
-(`2.3.0p49`, optionally `v`-prefixed); the workflow attaches the package to it.
-The `.sha256` must be there because `checkmk_build` fetches `${DEB_URL}.sha256`
-and pipes it through `sha256sum -c -`.
+**Releases are made by the build, not the other way round.** Run the workflow by
+hand, give it a version, and set `release` to `draft` or `publish`: a build that
+passes `ci/verify-deb.sh` then creates a release tagged with the Checkmk version
+(`2.3.0p49`) pointing at the commit that built it, carrying the `.deb` and its
+`.sha256`. Choose `draft` to look it over before it goes public.
+
+Doing it this way round matters because the build takes hours. Publishing the
+release first would leave it empty for all of them, and empty for good if the
+build failed. Re-running a version that already has a release replaces its
+assets rather than failing at the end of a long build.
+
+The `.sha256` is uploaded beside the `.deb` because `checkmk_build` fetches
+`${DEB_URL}.sha256` and pipes it through `sha256sum -c -`.
 
 [`ci/verify-deb.sh`](ci/verify-deb.sh) is what decides a build is acceptable, and
 runs locally as well:

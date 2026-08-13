@@ -3,8 +3,13 @@ name: build-deb
 # Builds the arm64 Checkmk package on GitHub's free 4-vCPU arm64 runner.
 #
 #   push to ci/**       build and keep the package as a workflow artifact
-#   release published   the same, and attach the .deb + .sha256 to the release
-#   workflow_dispatch   build any version by hand
+#   workflow_dispatch   build any version, and optionally cut the release
+#
+# The release is made *by* a green build rather than the other way round: a
+# build takes hours, so a release published up front would sit there empty for
+# all of them and stay empty if the build failed. Here the tag is created only
+# once a package exists and has passed ci/verify-deb.sh, and it points at the
+# exact commit that produced it.
 #
 # A cold build is hours long and needs no cache: see README.md for the measured
 # cost and why caching the 8.5 GB Bazel tree is not worth it.
@@ -12,22 +17,30 @@ name: build-deb
 on:
   push:
     branches: ["ci/**"]
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
         description: "Checkmk version, e.g. 2.3.0p49"
         required: true
         default: "2.3.0p49"
+      release:
+        description: "Release the package if the build passes"
+        type: choice
+        default: "no"
+        options:
+          - "no" # artifact only
+          - draft # create the release as a draft, to publish by hand
+          - publish # create and publish it
 
 permissions:
-  contents: write # to attach the package to a release
+  contents: write # to create the release and its tag
 
 concurrency:
-  # Never cancel a release build; a superseded branch push is worth cancelling
-  # rather than burning another few hours of runner on a stale commit.
-  group: build-deb-${{ github.ref }}
+  # Two dispatches for different versions are different work, so key on the
+  # version as well as the ref. Never cancel a run that may cut a release; a
+  # superseded branch push is worth cancelling rather than burning another few
+  # hours of runner on a stale commit.
+  group: build-deb-${{ github.ref }}-${{ github.event.inputs.version || 'default' }}
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
@@ -49,16 +62,11 @@ jobs:
 
       - name: Resolve the Checkmk version
         env:
-          EVENT: ${{ github.event_name }}
           INPUT_VERSION: ${{ inputs.version }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          case "$EVENT" in
-            workflow_dispatch) v="$INPUT_VERSION" ;;
-            release)           v="${RELEASE_TAG#v}" ;;
-            *)                 v="$DEFAULT_VERSION" ;;
-          esac
-          # Also the gate that stops an odd tag name reaching a shell below.
+          v="${INPUT_VERSION:-$DEFAULT_VERSION}"
+          # Also the gate that stops an odd input reaching a shell below, and
+          # that catches a typo before it costs a few hours of runner.
           [[ "$v" =~ ^2\.[0-9]+\.[0-9]+p[0-9]+$ ]] ||
             { echo "::error::'$v' is not a Checkmk version like 2.3.0p49"; exit 1; }
           echo "CMK_VERSION=$v" >> "$GITHUB_ENV"
@@ -115,13 +123,27 @@ jobs:
           path: ${{ env.CMK_DATA }}/work/${{ env.CMK_VERSION }}/logs/
           if-no-files-found: warn
 
-      # The .sha256 must go up alongside the .deb: checkmk_build's pipeline
-      # fetches ${DEB_URL}.sha256 and pipes it through `sha256sum -c -`.
-      - name: Attach the package to the release
-        if: github.event_name == 'release'
+      # Reached only by a build that has passed verification. The whole debs/
+      # directory goes up because the .sha256 has to be there beside the .deb:
+      # checkmk_build's pipeline fetches ${DEB_URL}.sha256 and pipes it through
+      # `sha256sum -c -`.
+      - name: Release the package
+        if: inputs.release == 'draft' || inputs.release == 'publish'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          MODE: ${{ inputs.release }}
         run: |
-          gh release upload "$TAG" --clobber \
-            "$CMK_DATA/work/$CMK_VERSION/debs/"*
+          debs="$CMK_DATA/work/$CMK_VERSION/debs"
+          # Re-running a version that already has a release replaces its
+          # assets rather than failing at the very end of a long build.
+          if gh release view "$CMK_VERSION" >/dev/null 2>&1; then
+            echo "release $CMK_VERSION already exists — replacing its assets"
+            gh release upload "$CMK_VERSION" --clobber "$debs"/*
+            exit 0
+          fi
+          opts=(--target "$GITHUB_SHA")
+          if [ "$MODE" = draft ]; then opts+=(--draft); fi
+          gh release create "$CMK_VERSION" "${opts[@]}" \
+            --title "Checkmk $CMK_VERSION (arm64)" \
+            --notes "Unofficial arm64 build of Checkmk $CMK_VERSION, built from source by \`.github/workflows/build-deb.yml\`. Not supported or endorsed by Checkmk." \
+            "$debs"/*
