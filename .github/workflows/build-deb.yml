@@ -1,0 +1,127 @@
+name: build-deb
+
+# Builds the arm64 Checkmk package on GitHub's free 4-vCPU arm64 runner.
+#
+#   push to ci/**       build and keep the package as a workflow artifact
+#   release published   the same, and attach the .deb + .sha256 to the release
+#   workflow_dispatch   build any version by hand
+#
+# A cold build is hours long and needs no cache: see README.md for the measured
+# cost and why caching the 8.5 GB Bazel tree is not worth it.
+
+on:
+  push:
+    branches: ["ci/**"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Checkmk version, e.g. 2.3.0p49"
+        required: true
+        default: "2.3.0p49"
+
+permissions:
+  contents: write # to attach the package to a release
+
+concurrency:
+  # Never cancel a release build; a superseded branch push is worth cancelling
+  # rather than burning another few hours of runner on a stale commit.
+  group: build-deb-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 350 # the hard cap is 360
+    env:
+      # Used when nothing else supplies a version, i.e. a push to ci/**.
+      DEFAULT_VERSION: "2.3.0p49"
+      # The runner has no /data; keep the whole build under the runner's own
+      # scratch space, which is on the large root filesystem.
+      CMK_DATA: ${{ runner.temp }}/cmk
+      # The runner has 16 GB against the build box's 23 GB. Peak measured RSS is
+      # 5.3 GiB, so this is headroom, not a budget.
+      MEMORY: 13g
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the Checkmk version
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          case "$EVENT" in
+            workflow_dispatch) v="$INPUT_VERSION" ;;
+            release)           v="${RELEASE_TAG#v}" ;;
+            *)                 v="$DEFAULT_VERSION" ;;
+          esac
+          # Also the gate that stops an odd tag name reaching a shell below.
+          [[ "$v" =~ ^2\.[0-9]+\.[0-9]+p[0-9]+$ ]] ||
+            { echo "::error::'$v' is not a Checkmk version like 2.3.0p49"; exit 1; }
+          echo "CMK_VERSION=$v" >> "$GITHUB_ENV"
+          echo "building Checkmk $v"
+
+      - name: Runner capacity
+        run: |
+          nproc
+          free -h
+          df -h /
+          docker version --format '{{.Server.Version}}'
+
+      # ~25 GB is needed against ~46 GB free, so this is insurance rather than a
+      # necessity — but finding out at hour two is expensive.
+      - name: Reclaim runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/powershell /usr/share/swift || true
+          docker image prune -af || true
+          df -h /
+
+      - name: Build the builder image
+        run: ./run.sh image
+
+      - name: Start the build container
+        run: ./run.sh up
+
+      # The long one. `watch` has no place in a single CI job, so disk is simply
+      # reported around this step instead.
+      - name: Build the package
+        run: ./run.sh build
+
+      - name: Build state and disk
+        if: always()
+        run: |
+          df -h /
+          ./run.sh status || true
+
+      - name: Verify the package
+        run: ./ci/verify-deb.sh
+
+      - name: Upload the package as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-mk-raw-${{ env.CMK_VERSION }}_arm64
+          path: ${{ env.CMK_DATA }}/work/${{ env.CMK_VERSION }}/debs/*
+          if-no-files-found: error
+
+      - name: Upload the build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ env.CMK_VERSION }}
+          path: ${{ env.CMK_DATA }}/work/${{ env.CMK_VERSION }}/logs/
+          if-no-files-found: warn
+
+      # The .sha256 must go up alongside the .deb: checkmk_build's pipeline
+      # fetches ${DEB_URL}.sha256 and pipes it through `sha256sum -c -`.
+      - name: Attach the package to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$TAG" --clobber \
+            "$CMK_DATA/work/$CMK_VERSION/debs/"*
