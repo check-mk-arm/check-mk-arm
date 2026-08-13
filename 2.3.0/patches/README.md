@@ -33,8 +33,6 @@ Verified against 2.3.0p49 — the originals are parked in `unused/`:
 
 - **`fake-windows-artifacts` path fix** — `scripts/fake-artifacts` (renamed in
   2.3) is not invoked anywhere in the `make deb` path.
-- **heirloom-mailx source URL** — `heirloom-mailx_http.bzl` already lists a
-  working `ftp.nl.debian.org` URL ahead of the internal mirror.
 - **`npm ci` -> `npm install`** — the root Makefile already probes the internal
   registry and falls back to the public one when it is unreachable.
 - **`--break-system-packages`** — handled in the build image by removing
@@ -45,9 +43,41 @@ Verified against 2.3.0p49 — the originals are parked in `unused/`:
 - **webpack `NODE_OPTIONS` memory cap** — not needed at 18 GB; add back if
   webpack OOMs on a smaller machine.
 
+## Dead upstream URLs (fixed by seeding the distdir, not by patching)
+
+Several pinned tarballs can no longer be fetched from the URL in the tree, with
+Checkmk's unreachable internal mirror as the only fallback. Rather than patch
+each URL — which would rot again — `build.sh` downloads them once into Bazel's
+`--distdir`, where they are matched by name and verified against the sha256 the
+tree already pins.
+
+| Tarball | Why the tree's URL fails | Seeded from |
+| --- | --- | --- |
+| ~84 CPAN modules | `www.cpan.org/modules/by-module/` only serves each distribution's *current* release, so every pinned older version 404s | MetaCPAN release index, BackPAN for deleted releases |
+| `snap7-1.4.2` | no public URL at all; upstream ships only `.7z` since 1.4.2 | repackaged locally from SourceForge |
+| `patch-2.7.6` | `ftpmirror.gnu.org` is a redirector that regularly lands on a mirror returning 502 | `ftp.gnu.org` |
+| `heirloom-mailx_12.5` | `ftp.nl.debian.org` presents a certificate that does not match the hostname, so Bazel refuses the connection | `archive.debian.org` |
+| `xmlsec1-1.2.37` | `aleksey.com/xmlsec/download/older-releases/` answers 403 | the project's GitHub release |
+
+Note the heirloom-mailx entry: the 2.2 recipe carried a patch for this URL and
+it is still needed — the URL in the tree is present but no longer usable.
+
 ## Things the tarball omits (restored by build.sh, not patched)
 
 The release tarball strips dotfiles, including **`.bazelversion`**. Without it
 bazelisk installs the newest Bazel (9.x), which enables bzlmod, ignores
 `WORKSPACE` entirely and fails with *"No repository visible as '@openssl'"*.
 `restore_tarball_omissions()` writes it back.
+
+## Patches added while getting the build green
+
+Beyond the aarch64 fixes, three problems were not architecture-specific at all
+but still block a build from the release tarball:
+
+- `0300-check_mk-idempotent-check-rename` — the legacy-check rename is not
+  repeatable, and one of its prerequisites is `.PHONY`, so it re-runs on every
+  invocation and fails on any resumed build.
+- `0301-omd-commit-from-tarball` — the install step runs `git rev-parse HEAD`,
+  which exits 128 outside a git checkout. The tarball ships a `COMMIT` file with
+  the real hash; the patch prefers it and keeps git as the fallback.
+- `0110`/`0111` config.guess — see the table above.
