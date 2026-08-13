@@ -59,6 +59,43 @@ and no re-download.
 Stages are marked in `state/`, so a build that dies after five hours resumes
 where it stopped rather than starting over.
 
+### Where the build lives
+
+Everything is written under `/data/checkmk`. Set `CMK_DATA` to move it — that is
+all CI needs to run the same build on a machine with no `/data`. `MEMORY` and
+`CPUS` cap the container; the defaults suit a 23 GB host.
+
+## Continuous integration
+
+[`.github/workflows/build-deb.yml`](.github/workflows/build-deb.yml) runs the
+same `./run.sh` on GitHub's free `ubuntu-24.04-arm` runner (4 vCPU, 16 GB,
+~46 GB free disk, 6 h job cap). The measured build needs 4 cores, 5.3 GiB and
+~25 GB, so it fits with roughly 2× margin and no caching.
+
+| Trigger | Result |
+| --- | --- |
+| push to `ci/**` | package kept as a workflow artifact |
+| release published | artifact, **and** the `.deb` + `.sha256` attached to the release |
+| `workflow_dispatch` | artifact, for any version you name |
+
+The build logs are uploaded as an artifact too, on success or failure.
+
+To cut a release, publish a GitHub release whose tag is the Checkmk version
+(`2.3.0p49`, optionally `v`-prefixed); the workflow attaches the package to it.
+The `.sha256` must be there because `checkmk_build` fetches `${DEB_URL}.sha256`
+and pipes it through `sha256sum -c -`.
+
+[`ci/verify-deb.sh`](ci/verify-deb.sh) is what decides a build is acceptable, and
+runs locally as well:
+
+- the package matches its own `.sha256`;
+- `Architecture: arm64` and the expected `Package`/`Version`;
+- **ELF sweep** — every binary in the package is aarch64 except the four known
+  x86 agent payloads (`waitmax`, `cmk-agent-ctl`, `mk-sql`, `agent_modbus`),
+  which must also each live under an `agents/` path;
+- it installs on clean `debian:bookworm-slim` and `omd version` runs — real
+  dependency resolution, which is what has actually broken before.
+
 ## How it works
 
 1. **fetch-src** — download the official `check-mk-raw-<ver>.cre.tar.gz`.
