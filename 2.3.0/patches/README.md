@@ -33,7 +33,8 @@ Numbering carries intent:
 
 ## Not needed for 2.3 (contrary to the older 2.2 recipe)
 
-Verified against 2.3.0p49 — the originals are parked in `unused/`:
+Verified against 2.3.0p49. The originals were dropped; `git log` has them if a
+hunk is ever worth re-reading:
 
 - **`fake-windows-artifacts` path fix** — `scripts/fake-artifacts` (renamed in
   2.3) is not invoked anywhere in the `make deb` path.
