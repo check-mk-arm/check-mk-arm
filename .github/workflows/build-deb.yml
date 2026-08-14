@@ -50,9 +50,6 @@ jobs:
     env:
       # Used when nothing else supplies a version, i.e. a push to ci/**.
       DEFAULT_VERSION: "2.3.0p49"
-      # The runner has no /data; keep the whole build under the runner's own
-      # scratch space, which is on the large root filesystem.
-      CMK_DATA: ${{ runner.temp }}/cmk
       # The runner has 16 GB against the build box's 23 GB. Peak measured RSS is
       # 5.3 GiB, so this is headroom, not a budget.
       MEMORY: 13g
@@ -60,7 +57,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve the Checkmk version
+
+      - name: Resolve the build environment
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
@@ -70,7 +68,10 @@ jobs:
           [[ "$v" =~ ^2\.[0-9]+\.[0-9]+p[0-9]+$ ]] ||
             { echo "::error::'$v' is not a Checkmk version like 2.3.0p49"; exit 1; }
           echo "CMK_VERSION=$v" >> "$GITHUB_ENV"
-          echo "building Checkmk $v"
+          # The runner has no /data; keep the whole build under the runner's own
+          # scratch space, which is on the large root filesystem.
+          echo "CMK_DATA=$RUNNER_TEMP/cmk" >> "$GITHUB_ENV"
+          echo "building Checkmk $v under $RUNNER_TEMP/cmk"
 
       - name: Runner capacity
         run: |
