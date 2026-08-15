@@ -133,6 +133,10 @@ fi
 # Second, independent gate: a bare count would let a genuine server-binary
 # regression through if it happened to displace one of the four.
 for f in "${foreign[@]-}"; do
+	# An empty array still expands to one empty word here, which would otherwise
+	# be reported as a nameless foreign binary — a clean package failing the gate
+	# that exists to catch dirty ones.
+	[ -n "$f" ] || continue
 	case "$f" in
 	*/agents/*) ;;
 	*) fail "non-aarch64 binary outside an agents/ path: $f" ;;

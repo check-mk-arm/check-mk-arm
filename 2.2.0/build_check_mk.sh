@@ -58,24 +58,36 @@ echo "going to check-mk source path ...."
 cd check-mk-raw-${VERSION}.cre
 
 # Install all .patch files that dont start with 'ZZZ__'
+#
+# A patch that no longer applies is fatal. The failure used to be echoed and
+# stepped over, which is how five of these came to be dead: two superseded by
+# narrower patches, two obsolete against p47, one malformed. Nothing noticed,
+# because a patch that did not apply surfaced hours later as a build failing
+# somewhere else entirely — if it surfaced at all.
 echo "installing patches ...."
 for FILE in "../patches/"*.patch; do
    if [ -f "$FILE" ]; then
       BASENAME=$(basename "$FILE")
       if [[ "$BASENAME" != ZZZ___* ]]; then
-         patch -l -f -p0 < $FILE > /dev/null
-         if [ $? != 0 ]; then
+         if ! patch -l -f -p0 --dry-run < "$FILE" > /dev/null 2>&1; then
             echo "failure with Patch: $BASENAME"
-         else 
-            echo "success with Patch: $BASENAME"
-         fi 
+            patch -l -f -p0 --dry-run < "$FILE" 2>&1 | sed 's/^/    /'
+            exit 1
+         fi
+         patch -l -f -p0 < "$FILE" > /dev/null
+         echo "success with Patch: $BASENAME"
       fi
    fi
 done
 
-### Copy Pipfile.lock
+### Keep the Pipfile.lock the source tarball ships
+#
+# The patch loop above rewrites the Pipfile, and the top-level Makefile has a
+# `Pipfile.lock: Pipfile` rule that would then re-resolve every dependency
+# against live PyPI. Only the timestamp has to win — the shipped lock matches
+# this version's Pipfile and carries the hashes for every architecture.
 
-cp ../patches/Pipfile.lock .
+touch Pipfile.lock
 
 ./configure
 

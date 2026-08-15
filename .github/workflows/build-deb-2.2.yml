@@ -154,9 +154,10 @@ jobs:
             -v "$DEBS":/opt/build-mk/debs \
             "$IMAGE" "$CMK_VERSION"
 
-      # build_check_mk.sh has no `set -e` and only echoes on a failed patch, so
-      # a wholly broken build can still exit 0. Nothing downstream may assume a
-      # package exists just because the step above returned.
+      # A patch that no longer applies now aborts build_check_mk.sh, but the
+      # script still has no `set -e`: a `make deb` that dies leaves it exiting
+      # 0 all the same. Nothing downstream may assume a package exists just
+      # because the step above returned.
       - name: Check that a package was produced
         run: |
           name="check-mk-raw-${CMK_VERSION}_0.bookworm_arm64.deb"

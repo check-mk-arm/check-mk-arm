@@ -1,0 +1,45 @@
+Stop xmlsec1 declaring the same files twice.
+
+    ERROR: One of the output paths '.../external/xmlsec1/xmlsec1/lib' and
+    '.../external/xmlsec1/xmlsec1/lib/libxmlsec1.so.1' is a prefix of the
+    other. These actions cannot be simultaneously present
+
+The rule delivers the whole `lib` directory through out_data_dirs -- it has to,
+because Bazel does not know about the .la files in there -- and *also* names
+four libraries inside that directory in out_shared_libs. Bazel 5.4.1, which
+upstream pins in .bazelversion, tolerated the overlap. Bazel 7 makes it an
+artifact prefix conflict, and the release tarball ships no dotfiles, so the pin
+never reaches this build: the image installs 7.4.0 and nothing reconciles them.
+
+Two ways out, and this is the smaller one. The other four Bazel packages --
+openssl, redis, patch, heirloom-mailx -- all build correctly under 7.4.0 in the
+same run, so pinning the image back to 5.4.1 would move those four onto an
+untested toolchain to fix the fifth.
+
+Dropping the listing costs nothing. xmlsec1.make rsyncs the entire output tree,
+so the libraries ship either way, and its next line runs patchelf over all four
+of them -- a library that failed to build still stops the build, one step later
+and with a clearer message than a missing Bazel output.
+
+--- omd/packages/xmlsec1/BUILD.xmlsec1
++++ omd/packages/xmlsec1/BUILD.xmlsec1_v2
+@@ -56,14 +56,11 @@
+     # So instead of listing library files explicitly we just deliver the
+     # whole `lib` folder, containing shared and dynamic libraries as well as
+     # .la files
+-    # Note that we list the dynamic libraries anyway, in order to fail if they
+-    # for any reason can't be built
+-    out_shared_libs=[
+-        "libxmlsec1.so",
+-        "libxmlsec1.so.1",
+-        "libxmlsec1-openssl.so",
+-        "libxmlsec1-openssl.so.1",
+-    ],
++    # The libraries are deliberately not listed in `out_shared_libs` as well:
++    # declaring `lib` and files inside it is an artifact prefix conflict, which
++    # Bazel 7 rejects and the pinned 5.4.1 tolerated. Listing them was only a
++    # check that they got built, and that check survives elsewhere -- xmlsec1.make
++    # runs patchelf over all four, so one that is missing still stops the build.
+     out_data_dirs=["lib"],
+     targets=["install"],
+ )

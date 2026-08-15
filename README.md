@@ -140,13 +140,43 @@ mounting the whole work directory over `/opt/build-mk`, as `run.sh` does for
 2.3, would shadow the patches the image put there and the build would silently
 apply none of them.
 
-Two changes were needed to `2.2.0/` to make it build at all, both in
-`build_check_mk.sh`. The donor package it takes the Windows agents from was
-pinned to Ubuntu `mantic`, which Checkmk withdrew along with 23.10 — it 404s for
-`2.2.0p47`, and since the script has no `set -e` the failure fell through to a
-`rm -rf agents/windows` that was never followed by the replacement, producing a
-package with no Windows agents that exited 0. The donor is now the `bookworm`
-build, and the swap is guarded.
+Building `2.2.0p47` at all took five changes to `2.2.0/`. The recipe was
+written against an earlier patch level and inherited as-is, and every one of
+these failed quietly rather than stopping the build:
+
+- **The donor package.** The Windows agents are lifted out of an official amd64
+  package, which was pinned to Ubuntu `mantic` — withdrawn along with 23.10, so
+  it 404s for `2.2.0p47`. The script has no `set -e`, so the failed download
+  fell through to a `rm -rf agents/windows` that was never followed by the
+  replacement: a package with no Windows agents, exiting 0. The donor is now
+  the `bookworm` build, and the swap is guarded.
+- **The Pipfile lock.** Applying the patches rewrites the `Pipfile`, and the
+  top-level `Makefile` has a `Pipfile.lock: Pipfile` rule that would then
+  re-resolve every dependency against live PyPI. The recipe carried a vendored
+  copy of the lock to win that race; the tarball ships one that matches this
+  version, so only its timestamp is touched now.
+- **Patches that no longer applied.** Five of the eighteen did not apply to
+  p47: two superseded by narrower patches added later, two obsolete (the
+  `pymssql` bump is in p47 already), one malformed. The loop echoed the
+  failures and carried on, so nothing said so. They are gone, and a patch that
+  does not apply is now fatal.
+- **Bazel's version pin.** Upstream pins Bazel 5.4.1 in `.bazelversion`, the
+  tarball ships no dotfiles, and the image installs 7.4.0 — so `xmlsec1`, whose
+  rule declares both a `lib` directory and files inside it, fails analysis with
+  an artifact prefix conflict that 5.4.1 tolerated. The redundant declaration is
+  dropped rather than the toolchain downgraded; the other four Bazel packages
+  build correctly under 7.4.0. See
+  [`xmlsec1-drop-duplicate-lib-outputs.patch`](2.2.0/patches/xmlsec1-drop-duplicate-lib-outputs.patch).
+- **The Python modules.** Every module is built from source, and pip resolves
+  each sdist's build dependencies from PyPI at build time, so a recipe frozen
+  in 2023 gets compiled by whatever setuptools and Cython exist today — and two
+  of them moved out from under it. `setuptools` 82 removed `pkg_resources`,
+  which `grpcio`'s `setup.py` imports; `pymssql` is pinned to a fork whose
+  `.pyx` Cython rejects from 3.2 on. Both are fixed by constraining the build
+  environments, which is what upstream does in 2.3 as well. See the header of
+  [`python3-modules-constrain-build-envs.patch`](2.2.0/patches/python3-modules-constrain-build-envs.patch),
+  which also records why the "speed up the build" patch that used to sit beside
+  it was dropped rather than repaired.
 
 The sha256 of both upstream inputs — the source tarball and the donor package —
 is recorded in the job summary and in the release notes, alongside a link to the

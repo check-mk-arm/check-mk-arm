@@ -1,0 +1,59 @@
+Constrain the build environments pip creates for these installs.
+
+Every install below builds from source, and pip resolves each sdist's build
+dependencies itself, from PyPI, at build time. Nothing pins those, so a recipe
+frozen in 2023 is compiled by whatever setuptools and Cython exist today. Two
+of them have moved out from under it.
+
+setuptools 82.0.0 removed pkg_resources, which grpcio 1.53.2's setup.py imports
+at the top -- so the build died in "Getting requirements to build wheel" with
+ModuleNotFoundError before compiling a line. The cap keeps every build
+environment on the same side of that removal, and costs nothing in fidelity:
+Pipfile.lock pins setuptools==80.9.0 as a runtime requirement anyway, so this
+is the setuptools the package ships regardless. setuptools_scm is capped for
+the same reason, and both pins are the ones upstream themselves settled on --
+2.3 writes this identical constraints file into its Bazel rule.
+
+Cython is pinned for pymssql alone. Upstream pins it to a fork, installed
+straight from git, whose _mssql.pyx carries an unbalanced paren inside an
+f-string:
+
+    raise ValueError(f"'encryption' option should be {TDS_ENCRYPTION_LEVEL.keys())} or None.")
+
+Cython accepted that up to 3.1 and rejects it from 3.2 on, with "Unclosed
+string literal" at _mssql.pyx:671. The Pipfile already pins Cython==3.0.11,
+commented "needed by numpy & pymssql", but a pip build environment never sees
+the Pipfile. The pin is deliberately scoped to this one install rather than
+added to the shared file: numpy 1.24.2 requires Cython<3.0 to build, so a
+global pin would trade one broken package for another.
+
+Note what is deliberately *not* changed here: --no-binary=":all:". The removed
+ZZZ_NEW_SPEEDUP_PYTHON_MODULES.patch dropped it to have pip take wheels. The
+install step below runs `patchelf --set-rpath` over every .so in the tree,
+which would overwrite the $ORIGIN-relative rpaths manylinux wheels use to
+reach their bundled libraries -- numpy, Pillow and psycopg2-binary all ship a
+.libs directory, and all three would import fine in CI and fail on the
+installed system. 2.3 builds every module from source too, on this same
+runner, well inside the job's time cap.
+
+--- omd/packages/python3-modules/python3-modules.make
++++ omd/packages/python3-modules/python3-modules.make_v2
+@@ -69,6 +69,9 @@
+             export PATH="$(PYTHON3_MODULES_WORK_DIR):$$PATH" ; \
+             mkdir -p "$(PYTHON3_MODULES_WORK_DIR)" ; \
+             install -m 755 "$(PACKAGE_DIR)/omd/use_system_openssl" "$(PYTHON3_MODULES_WORK_DIR)/git" ; \
++	    echo "setuptools<82.0.0" > "$(PYTHON3_MODULES_WORK_DIR)/constraints.txt" ; \
++	    echo "setuptools_scm<10.0.0" >> "$(PYTHON3_MODULES_WORK_DIR)/constraints.txt" ; \
++	    export PIP_CONSTRAINT="$(PYTHON3_MODULES_WORK_DIR)/constraints.txt" ; \
+ 	    $(PACKAGE_PYTHON_EXECUTABLE) -m pip install \
+ 		`: dont use precompiled things, build with our build env ` \
+ 		--no-binary=":all:" \
+@@ -79,6 +82,8 @@
+ 		--no-warn-script-location \
+ 		--prefix="$(PYTHON3_MODULES_INSTALL_DIR)" \
+ 		git+https://github.com/Checkmk/netapp-ontap-cmk.git@e38ce4ce357ad2ea8f47260c269757f8805bdbce ; \
++	    { cat "$(PYTHON3_MODULES_WORK_DIR)/constraints.txt" ; echo "Cython==3.0.11" ; } > "$(PYTHON3_MODULES_WORK_DIR)/pymssql-constraints.txt" ; \
++	    PIP_CONSTRAINT="$(PYTHON3_MODULES_WORK_DIR)/pymssql-constraints.txt" \
+ 	    $(PACKAGE_PYTHON_EXECUTABLE) -m pip install \
+ 		`: dont use precompiled things, build with our build env ` \
+ 		--no-binary=":all:" \
