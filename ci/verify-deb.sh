@@ -18,6 +18,7 @@ VERSION="${CMK_VERSION:-2.3.0p49}"
 MINOR="${VERSION%%p*}"
 
 case "$MINOR" in
+2.2.0) DISTRO=bookworm ;;
 2.3.0) DISTRO=bookworm ;;
 2.4.0) DISTRO=trixie ;;
 *) echo "unknown Checkmk minor '$MINOR' — teach verify-deb.sh its distro" >&2; exit 1 ;;
@@ -32,12 +33,23 @@ BASE_IMAGE="debian:${DISTRO}-slim"
 # payloads shipped for deployment to x86 hosts, which never run on the server.
 # Paths are relative to the version directory. A change here is a decision, not
 # a formality — anything new in this list must be justified in the README.
-EXPECTED_X86=(
-	share/check_mk/agents/linux/cmk-agent-ctl
-	share/check_mk/agents/linux/mk-sql
-	share/check_mk/agents/waitmax
-	share/doc/check_mk/treasures/modbus/agents/special/agent_modbus
-)
+#
+# The list is per-minor because the agent payload differs between releases —
+# mk-sql, for one, arrived in 2.3. A minor with no curated list still gets the
+# "outside an agents/ path" gate below, which is the one with real teeth; it
+# just reports what it found instead of diffing against an expectation nobody
+# has established yet.
+case "$MINOR" in
+2.3.0 | 2.4.0)
+	EXPECTED_X86=(
+		share/check_mk/agents/linux/cmk-agent-ctl
+		share/check_mk/agents/linux/mk-sql
+		share/check_mk/agents/waitmax
+		share/doc/check_mk/treasures/modbus/agents/special/agent_modbus
+	)
+	;;
+*) EXPECTED_X86=() ;;
+esac
 
 pass() { printf '  ok    %s\n' "$*"; }
 fail() { printf '  FAIL  %s\n' "$*" >&2; FAILED=1; }
@@ -104,14 +116,18 @@ mapfile -t foreign < <(
 		sed "s|^$VERDIR/||" | sort
 )
 
-mapfile -t expected < <(printf '%s\n' "${EXPECTED_X86[@]}" | sort)
-
-if [ "${foreign[*]-}" = "${expected[*]}" ]; then
-	pass "the only ${#foreign[@]} non-aarch64 ELF binaries are the known agent payloads"
+if [ "${#EXPECTED_X86[@]}" -eq 0 ]; then
+	pass "found ${#foreign[@]} non-aarch64 ELF binaries (no curated list for $MINOR — recorded, not gated):"
+	printf '          %s\n' "${foreign[@]-}"
 else
-	fail "unexpected set of non-aarch64 ELF binaries:"
-	diff <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${foreign[@]-}") |
-		sed 's/^/        /' >&2 || true
+	mapfile -t expected < <(printf '%s\n' "${EXPECTED_X86[@]}" | sort)
+	if [ "${foreign[*]-}" = "${expected[*]}" ]; then
+		pass "the only ${#foreign[@]} non-aarch64 ELF binaries are the known agent payloads"
+	else
+		fail "unexpected set of non-aarch64 ELF binaries:"
+		diff <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${foreign[@]-}") |
+			sed 's/^/        /' >&2 || true
+	fi
 fi
 
 # Second, independent gate: a bare count would let a genuine server-binary
@@ -122,6 +138,22 @@ for f in "${foreign[@]-}"; do
 	*) fail "non-aarch64 binary outside an agents/ path: $f" ;;
 	esac
 done
+
+# --------------------------------------------------------- windows agents ----
+
+# The Windows agent payload is not built here, it is lifted out of an official
+# amd64 package. All recipes do that by deleting agents/windows and moving the
+# donor's copy into its place, so a donor that failed to download or unpack
+# leaves a package that is complete in every other respect and simply has no
+# Windows agents. It installs, `omd version` runs, and nobody notices until
+# somebody tries to deploy one.
+step "windows agent payload"
+MSI="$VERDIR/share/check_mk/agents/windows/check_mk_agent.msi"
+if [ -s "$MSI" ]; then
+	pass "check_mk_agent.msi present ($(du -h "$MSI" | cut -f1))"
+else
+	fail "no check_mk_agent.msi — the donor deb's agents/windows never made it in"
+fi
 
 rm -rf "$EXTRACT"
 EXTRACT=""

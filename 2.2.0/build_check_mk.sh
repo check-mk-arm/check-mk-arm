@@ -26,8 +26,16 @@ if [ ! -d check-mk-raw-${VERSION}.cre ]; then
 fi
 
 # get check_mk for windows artifact extraction
-if [ ! -f check-mk-cloud-${VERSION}_0.kinetic_amd64.deb ]; then
-    wget https://download.checkmk.com/checkmk/${VERSION}/check-mk-cloud-${VERSION}_0.mantic_amd64.deb
+#
+# The Windows agent binaries are not built here, they are lifted out of an
+# official amd64 package. Upstream took them from the `mantic` build, which
+# Checkmk has since withdrawn along with Ubuntu 23.10 — it 404s for 2.2.0p47.
+# `bookworm` is still published and matches this image's base. The guard also
+# used to name a third distro (`kinetic`), so it never matched the file the
+# wget below wrote and the download repeated on every run.
+DONOR_DEB="check-mk-cloud-${VERSION}_0.bookworm_amd64.deb"
+if [ ! -f "${DONOR_DEB}" ]; then
+    wget https://download.checkmk.com/checkmk/${VERSION}/${DONOR_DEB}
 fi
 
 # create symlink to c++-12 compiler if not exists
@@ -72,8 +80,13 @@ cp ../patches/Pipfile.lock .
 ./configure
 
 echo "prepare windows artifacts ..."
-ar x ../check-mk-cloud-${VERSION}_0.mantic_amd64.deb
+ar x ../${DONOR_DEB}
 tar -I zstd -xf data.tar.zst
+# Nothing above this line uses `set -e`, so guard the swap: if the donor
+# extraction failed, the rm would still fire and the build would go on to
+# produce a package with no Windows agents at all.
+[ -d opt/omd/versions/${VERSION}.cce/share/check_mk/agents/windows ] ||
+   { echo "no Windows agents in ${DONOR_DEB} — refusing to gut agents/windows"; exit 1; }
 rm -rf agents/windows
 mv opt/omd/versions/${VERSION}.cce/share/check_mk/agents/windows agents/
 

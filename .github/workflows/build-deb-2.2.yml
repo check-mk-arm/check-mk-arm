@@ -1,0 +1,234 @@
+name: build-deb-2.2
+
+# Builds the arm64 Checkmk 2.2 package on GitHub's free 4-vCPU arm64 runner.
+#
+# Checkmk 2.2 is end of life. This exists for one reason: an upgrade to 2.3
+# expects the system to be on the last patch level of the previous version, so
+# an arm64 2.2.0p47 is the missing step on the path to the 2.3 package. It is
+# meant to be dispatched by hand a small number of times, not to run on pushes
+# — hence no `push:` trigger, unlike build-deb.yml. Being built here in public
+# is the point: the log is the record of how the package was made.
+#
+# Why this does not go through ./run.sh, which drives the 2.3 build:
+#
+#   2.3.0/ is a bare toolchain image with the recipe bind-mounted in from the
+#   worktree, and a resumable state machine behind it — that exists for the
+#   edit/re-run debug loop on a build box. 2.2.0/ is the inherited upstream
+#   layout: patches are COPYed into the image and build_check_mk.sh is the
+#   ENTRYPOINT, so the image is self-contained and one `docker run` is the
+#   whole build. A CI run is always cold, so the state machine would buy
+#   nothing here anyway.
+#
+#   That self-containment is also a trap: run.sh mounts $WORK over
+#   /opt/build-mk, which would shadow the patches the image put there and the
+#   build would silently apply none of them. Only debs/ is mounted below.
+
+on:
+  # A separate prefix from build-deb.yml's `ci/**`, so a push starts one build
+  # rather than two: `ci-2.2/foo` does not match `ci/**`, and vice versa. This
+  # is also the only way to exercise the workflow before it reaches the default
+  # branch — GitHub offers the Run button for `workflow_dispatch` only once the
+  # file is on the default branch, but a push trigger fires from any branch.
+  push:
+    branches: ["ci-2.2/**"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Checkmk 2.2 version (p47 is the last one)"
+        required: true
+        default: "2.2.0p47"
+      release:
+        description: "Release the package if the build passes"
+        type: choice
+        default: "no"
+        options:
+          - "no" # artifact only
+          - draft # create the release as a draft, to publish by hand
+          - publish # create and publish it
+
+permissions:
+  contents: write # to create the release and its tag
+
+concurrency:
+  # Never cancel a dispatch, which may cut a release; a superseded branch push
+  # is worth cancelling rather than burning another few hours on a stale commit.
+  group: build-deb-2.2-${{ github.ref }}-${{ github.event.inputs.version || 'default' }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 350 # the hard cap is 360
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    env:
+      # Used when nothing else supplies a version, i.e. a push to ci-2.2/**.
+      # p47 is 2.2's last patch level, and the only one this is really for.
+      DEFAULT_VERSION: "2.2.0p47"
+      # 2.2 predates the Bazel-heavy 2.3 build, so this is if anything roomier
+      # than the 2.3 run it is copied from: 16 GB on the runner, 5.3 GiB peak
+      # measured RSS there. Left at 3.5 CPUs to match, so the two builds'
+      # timings stay comparable.
+      MEMORY: 13g
+      CPUS: "3.5"
+      IMAGE: cmk-arm-build:2.2.0-bookworm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the build environment
+        id: resolve
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          v="${INPUT_VERSION:-$DEFAULT_VERSION}"
+          # Also the gate that stops an odd input reaching a shell below, and
+          # that catches a typo before it costs a few hours of runner. Narrower
+          # than build-deb.yml's: this workflow only knows how to build 2.2.
+          [[ "$v" =~ ^2\.2\.0p[0-9]+$ ]] ||
+            { echo "::error::'$v' is not a Checkmk 2.2 version like 2.2.0p47"; exit 1; }
+          echo "CMK_VERSION=$v" >> "$GITHUB_ENV"
+          echo "DEBS=$RUNNER_TEMP/debs" >> "$GITHUB_ENV"
+          # A job output as well, because $GITHUB_ENV does not cross job
+          # boundaries and the docker-image job needs the resolved version.
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/debs"
+
+      - name: Runner capacity
+        run: |
+          nproc
+          free -h
+          df -h /
+          docker version --format '{{.Server.Version}}'
+
+      # ~25 GB is needed against ~46 GB free, so this is insurance rather than a
+      # necessity — but finding out at hour two is expensive.
+      - name: Reclaim runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/powershell /usr/share/swift || true
+          docker image prune -af || true
+          df -h /
+
+      # The two inputs that are fetched from the network at build time and are
+      # not in this repository. Hashing them here puts their identity in the
+      # public log and in the release notes, so the package can be tied back to
+      # the exact upstream bytes it came from. Streamed, never written to disk;
+      # a couple of minutes against a build measured in hours.
+      - name: Record the build inputs
+        run: |
+          base="https://download.checkmk.com/checkmk/$CMK_VERSION"
+          src="check-mk-raw-${CMK_VERSION}.cre.tar.gz"
+          donor="check-mk-cloud-${CMK_VERSION}_0.bookworm_amd64.deb"
+          src_sha=$(curl -fsSL "$base/$src" | sha256sum | cut -d' ' -f1)
+          donor_sha=$(curl -fsSL "$base/$donor" | sha256sum | cut -d' ' -f1)
+          echo "SRC_SHA=$src_sha" >> "$GITHUB_ENV"
+          echo "DONOR_SHA=$donor_sha" >> "$GITHUB_ENV"
+          {
+            echo "### Upstream inputs"
+            echo
+            echo '```'
+            echo "$src_sha  $src"
+            echo "$donor_sha  $donor"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build the builder image
+        run: docker build -t "$IMAGE" 2.2.0/
+
+      # One shot: the ENTRYPOINT is build_check_mk.sh and the version is its
+      # only argument. Only debs/ is mounted — see the header.
+      #
+      # The --add-host lines point Checkmk's internal mirrors at localhost.
+      # Those hosts resolve publicly but blackhole traffic, so every probe
+      # otherwise burns a full connect timeout; several upstream targets fall
+      # back to the public registry when the probe *fails*, so making it fail
+      # instantly turns a multi-minute stall into a no-op. --init reaps the
+      # orphans that a build script as PID 1 would not.
+      - name: Build the package
+        run: |
+          docker run --rm --init --hostname cmk-build \
+            --cpus "$CPUS" --memory "$MEMORY" --memory-swap "$MEMORY" \
+            --add-host artifacts.lan.tribe29.com:127.0.0.1 \
+            --add-host devpi.lan.tribe29.com:127.0.0.1 \
+            -v "$DEBS":/opt/build-mk/debs \
+            "$IMAGE" "$CMK_VERSION"
+
+      # build_check_mk.sh has no `set -e` and only echoes on a failed patch, so
+      # a wholly broken build can still exit 0. Nothing downstream may assume a
+      # package exists just because the step above returned.
+      - name: Check that a package was produced
+        run: |
+          name="check-mk-raw-${CMK_VERSION}_0.bookworm_arm64.deb"
+          [ -f "$DEBS/$name" ] ||
+            { echo "::error::no package at $DEBS/$name"; ls -la "$DEBS"; exit 1; }
+          # 2.2 has no equivalent of the 2.3 recipe's collect stage, so the
+          # checksum is written here. Bare filename, from inside the directory:
+          # `sha256sum -c` in verify-deb.sh and in checkmk_build both expect it
+          # to resolve relative to the file's own directory.
+          ( cd "$DEBS" && sha256sum "$name" > "$name.sha256" )
+          ls -la "$DEBS"
+
+      - name: Verify the package
+        run: ./ci/verify-deb.sh "$DEBS"
+
+      - name: Upload the package as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-mk-raw-${{ env.CMK_VERSION }}_arm64
+          path: ${{ env.DEBS }}/*
+          if-no-files-found: error
+
+      # Reached only by a build that has passed verification. The whole debs/
+      # directory goes up because the .sha256 has to be there beside the .deb:
+      # checkmk_build's pipeline fetches ${DEB_URL}.sha256 and pipes it through
+      # `sha256sum -c -`.
+      - name: Release the package
+        if: inputs.release == 'draft' || inputs.release == 'publish'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.release }}
+        run: |
+          # Re-running a version that already has a release replaces its
+          # assets rather than failing at the very end of a long build.
+          if gh release view "$CMK_VERSION" >/dev/null 2>&1; then
+            echo "release $CMK_VERSION already exists — replacing its assets"
+            gh release upload "$CMK_VERSION" --clobber "$DEBS"/*
+            exit 0
+          fi
+          # A heredoc, not an inline string: the notes are markdown and the
+          # indentation of this block would otherwise end up in the release.
+          notes=$(cat <<EOF
+          Unofficial arm64 build of Checkmk $CMK_VERSION, built from source by
+          \`.github/workflows/build-deb-2.2.yml\`. Not supported or endorsed by Checkmk.
+
+          Checkmk 2.2 is end of life. This is its last patch level, built because an
+          upgrade to 2.3 expects the previous version to be at its latest patch.
+
+          Built by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
+          from commit \`$GITHUB_SHA\`, on top of these upstream inputs:
+
+          \`\`\`
+          $SRC_SHA  check-mk-raw-${CMK_VERSION}.cre.tar.gz
+          $DONOR_SHA  check-mk-cloud-${CMK_VERSION}_0.bookworm_amd64.deb
+          \`\`\`
+          EOF
+          )
+          opts=(--target "$GITHUB_SHA")
+          if [ "$MODE" = draft ]; then opts+=(--draft); fi
+          gh release create "$CMK_VERSION" "${opts[@]}" \
+            --title "Checkmk $CMK_VERSION (arm64)" \
+            --notes "$notes" \
+            "$DEBS"/*
+
+  # Only on a release run: the image is built from the release asset, so there
+  # is nothing for it to fetch otherwise. See docker-image.yml.
+  image:
+    needs: build
+    if: inputs.release == 'draft' || inputs.release == 'publish'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      version: ${{ needs.build.outputs.version }}
