@@ -81,7 +81,14 @@ cp ../patches/Pipfile.lock .
 
 echo "prepare windows artifacts ..."
 ar x ../${DONOR_DEB}
-tar -I zstd -xf data.tar.zst
+# 2.2 donor debs ship data.tar.xz; 2.3+ switched to zstd. Take whichever the
+# ar archive actually contains instead of hardcoding one.
+DONOR_DATA=$(ls data.tar.* 2>/dev/null | head -n1)
+case "${DONOR_DATA}" in
+   "")    echo "no data.tar.* member in ${DONOR_DEB}" ;;
+   *.zst) tar -I zstd -xf "${DONOR_DATA}" ;;
+   *)     tar -xf "${DONOR_DATA}" ;;
+esac
 # Nothing above this line uses `set -e`, so guard the swap: if the donor
 # extraction failed, the rm would still fire and the build would go on to
 # produce a package with no Windows agents at all.

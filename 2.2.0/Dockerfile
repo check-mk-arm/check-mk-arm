@@ -114,6 +114,7 @@ RUN apt-get update \
     vim \
     valgrind \
     xmlsec1 \ 
+    xz-utils \
     zlib1g-dev \
     zstd \
     && rm -rf /var/lib/apt/lists/*
