@@ -47,6 +47,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 350 # the hard cap is 360
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
     env:
       # Used when nothing else supplies a version, i.e. a push to ci/**.
       DEFAULT_VERSION: "2.3.0p49"
@@ -59,6 +61,7 @@ jobs:
 
 
       - name: Resolve the build environment
+        id: resolve
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
@@ -68,6 +71,9 @@ jobs:
           [[ "$v" =~ ^2\.[0-9]+\.[0-9]+p[0-9]+$ ]] ||
             { echo "::error::'$v' is not a Checkmk version like 2.3.0p49"; exit 1; }
           echo "CMK_VERSION=$v" >> "$GITHUB_ENV"
+          # A job output as well, because $GITHUB_ENV does not cross job
+          # boundaries and the docker-image job needs the resolved version.
+          echo "version=$v" >> "$GITHUB_OUTPUT"
           # The runner has no /data; keep the whole build under the runner's own
           # scratch space, which is on the large root filesystem.
           echo "CMK_DATA=$RUNNER_TEMP/cmk" >> "$GITHUB_ENV"
@@ -148,3 +154,15 @@ jobs:
             --title "Checkmk $CMK_VERSION (arm64)" \
             --notes "Unofficial arm64 build of Checkmk $CMK_VERSION, built from source by \`.github/workflows/build-deb.yml\`. Not supported or endorsed by Checkmk." \
             "$debs"/*
+
+  # Only on a release run: the image is built from the release asset, so there
+  # is nothing for it to fetch otherwise. See docker-image.yml.
+  image:
+    needs: build
+    if: inputs.release == 'draft' || inputs.release == 'publish'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      version: ${{ needs.build.outputs.version }}

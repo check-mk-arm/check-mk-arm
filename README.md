@@ -15,7 +15,7 @@ Both stopped at Checkmk 2.2.
 
 | Directory | Checkmk | Build base            | Status                                  |
 | --------- | ------- | --------------------- | --------------------------------------- |
-| `2.2.0/`  | 2.2.x   | `debian:bookworm`     | inherited from upstream, kept for reference (untouched) |
+| `2.2.0/`  | 2.2.0p47| `debian:bookworm`     | inherited from upstream, minimally fixed to build in CI |
 | `2.3.0/`  | 2.3.0p49| `debian:bookworm-slim`| rewritten                               |
 
 Checkmk 2.5+ is out of scope: its Bazel `pkg_deb` hardcodes
@@ -100,9 +100,59 @@ runs locally as well:
 - `Architecture: arm64` and the expected `Package`/`Version`;
 - **ELF sweep** — every binary in the package is aarch64 except the four known
   x86 agent payloads (`waitmax`, `cmk-agent-ctl`, `mk-sql`, `agent_modbus`),
-  which must also each live under an `agents/` path;
+  which must also each live under an `agents/` path. The list is per-minor,
+  since the payload differs between releases (`mk-sql` arrived in 2.3); a minor
+  without a curated list is held only to the `agents/`-path rule and has what it
+  found recorded in the log;
+- **Windows agents** — `check_mk_agent.msi` is present and non-empty. Both
+  recipes install that payload by deleting `agents/windows` and moving the donor
+  package's copy into place, so a donor that failed to download leaves a package
+  that is complete in every other respect, installs fine, and simply cannot
+  deploy a Windows agent;
 - it installs on clean `debian:bookworm-slim` and `omd version` runs — real
   dependency resolution, which is what has actually broken before.
+
+### Checkmk 2.2
+
+[`.github/workflows/build-deb-2.2.yml`](.github/workflows/build-deb-2.2.yml)
+builds 2.2 on the same runner. It exists because upgrading to 2.3 expects the
+system to be on the *last* patch level of the previous version, so an arm64
+`2.2.0p47` (2.2's final release) is the missing step on the way to the 2.3
+package. 2.2 is end of life, so this is archival.
+
+| Trigger | Result |
+| --- | --- |
+| push to `ci-2.2/**` | package kept as a workflow artifact, never a release |
+| `workflow_dispatch` | artifact, for any 2.2 patch level, and optionally the release |
+
+The push prefix is deliberately not `ci/**`: that one belongs to the 2.3
+workflow, and a shared prefix would start both multi-hour builds on every push.
+It also gives you a way to exercise this workflow before it reaches the default
+branch, since GitHub only offers the `workflow_dispatch` Run button for files
+already on the default branch. A push cannot release — `release` is a dispatch
+input, and it is empty on a push.
+
+It does not go through `./run.sh`. The 2.2 image is self-contained — patches are
+`COPY`ed in and `build_check_mk.sh` is the `ENTRYPOINT` — so the build is a
+single `docker run` and the resumable state machine `run.sh` provides would buy
+nothing on a runner, where every run is cold anyway. Only `debs/` is mounted in:
+mounting the whole work directory over `/opt/build-mk`, as `run.sh` does for
+2.3, would shadow the patches the image put there and the build would silently
+apply none of them.
+
+Two changes were needed to `2.2.0/` to make it build at all, both in
+`build_check_mk.sh`. The donor package it takes the Windows agents from was
+pinned to Ubuntu `mantic`, which Checkmk withdrew along with 23.10 — it 404s for
+`2.2.0p47`, and since the script has no `set -e` the failure fell through to a
+`rm -rf agents/windows` that was never followed by the replacement, producing a
+package with no Windows agents that exited 0. The donor is now the `bookworm`
+build, and the swap is guarded.
+
+The sha256 of both upstream inputs — the source tarball and the donor package —
+is recorded in the job summary and in the release notes, alongside a link to the
+run that produced the package. The build itself is not bit-reproducible (the
+container runs `apt-get upgrade`, and the image installs unpinned Debian and
+NodeSource packages); what is reproducible is the account of how it was made.
 
 ## How it works
 
@@ -125,10 +175,41 @@ architecture fixes and are suitable to offer upstream to Checkmk.
 
 ## Consuming the result
 
-[`checkmk_build`](https://gitlab.com/joeri2821-gh14/joeri2821-docker-images/checkmk)
-wraps the package into a runnable Docker image. The base image must match the
-distro the package was built for (2.3 → bookworm, 2.4 → trixie), because the
-dependencies are distro-specific.
+[`docker/`](docker/) wraps the package into a runnable image, published to GHCR:
+
+```
+docker pull ghcr.io/<owner>/check-mk-raw:2.3.0p49
+```
+
+[`.github/workflows/docker-image.yml`](.github/workflows/docker-image.yml) is a
+`workflow_call` workflow that both build workflows invoke, so 2.2 and 2.3+ share
+one image recipe. It runs only on a release run, because it fetches the package
+**from the GitHub release** rather than from the build job's artifact — that
+exercises the same path a user takes, so a release whose assets are missing or
+corrupt fails there rather than in somebody's `docker build`. The `.sha256` is
+checked before the package is used. Draft releases work too; the download goes
+through `gh`, whose token can see them.
+
+`docker/version.sh` is the single source of truth for the version, the distro
+and the tag set, all derived from the `.deb`'s own filename — which is why the
+workflow downloads the asset by glob rather than by a name it builds itself.
+Passing the release tag in as `GIT_TAG` makes it refuse to publish a package
+whose version disagrees with the release being built.
+
+Each build publishes two tags, the patch level and its series (`2.3.0p49` and
+`2.3.0`). No `latest`: only the newest supported line could honestly claim it,
+and this also builds end-of-life 2.2 and, on demand, older patch levels. Note
+that the series tag has the same hazard in miniature — rebuilding an older patch
+level moves `2.3.0` backwards.
+
+The base distro must match the one the package was built for, since the
+dependencies are distro-specific (bookworm pulls `libperl5.36`, trixie
+`libperl5.40`); it is the `DISTRO_CODE` build arg, read out of the `.deb` name.
+
+`docker/` comes from
+[`checkmk_build`](https://github.com/check-mk-arm/checkmk_build) and is a
+verbatim copy of it — that repository's GitLab ancestry is no longer tracked.
+Changes belong here now.
 
 ## Caveats
 
