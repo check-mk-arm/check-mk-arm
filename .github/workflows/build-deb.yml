@@ -161,7 +161,7 @@ jobs:
     needs: build
     if: inputs.release == 'draft' || inputs.release == 'publish'
     permissions:
-      contents: read
+      contents: write
       packages: write
     uses: ./.github/workflows/docker-image.yml
     with:

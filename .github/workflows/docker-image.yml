@@ -29,7 +29,9 @@ jobs:
     # arm64: the package is arm64, so the image has to be built on it.
     runs-on: ubuntu-24.04-arm
     permissions:
-      contents: read # to download the release asset, including drafts
+      # `write` to also download draft releases, which are not public and therefore
+      # not available with read only permissions.
+      contents: write # to download the release asset, including drafts
       packages: write # to push to GHCR
 
     steps:
