@@ -1,4 +1,4 @@
-# Checkmk Raw for arm64.
+# Checkmk Community Edition (formerly Raw Edition) for arm64.
 #
 # Based on https://git.onesystems.ch/monitoring/check_mk/-/tree/master/docker
 #
@@ -16,8 +16,8 @@ FROM debian:${DISTRO_CODE}-slim
 ARG CMK_VERSION
 ARG DISTRO_CODE
 
-LABEL org.opencontainers.image.title="Checkmk Raw (arm64)" \
-      org.opencontainers.image.description="Checkmk Raw Edition for Linux ARM64 (Raspberry Pi 3/4/5, ARM servers)" \
+LABEL org.opencontainers.image.title="Checkmk Community Edition (arm64)" \
+      org.opencontainers.image.description="Checkmk Community Edition (formerly Raw Edition) for Linux ARM64" \
       org.opencontainers.image.version="${CMK_VERSION}" \
       org.opencontainers.image.source="https://github.com/check-mk-arm/check-mk-arm" \
       org.opencontainers.image.licenses="GPL-2.0-only"

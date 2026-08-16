@@ -2,14 +2,14 @@
 # only sets variables and must not exit the shell on its own.
 #
 # Sets:
-#   IMAGE_NAME     check-mk-raw-pi
+#   IMAGE_NAME     checkmk-community-arm
 #   CMK_VERSION    Checkmk version taken from the .deb filename (e.g. 2.3.0p49)
 #   DISTRO_CODE    distro the .deb was built for (e.g. bookworm)
 #   IMAGE_VERSION  primary tag
 #   IMAGE_TAG      $IMAGE_NAME:$IMAGE_VERSION   (kept for backwards compatibility)
 #   IMAGE_TAGS     every tag this build should publish
 
-IMAGE_NAME=check-mk-raw-pi
+IMAGE_NAME=checkmk-community-arm
 
 # The .deb is the source of truth: its name encodes both the Checkmk version and
 # the distro it was built against.

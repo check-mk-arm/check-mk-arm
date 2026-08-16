@@ -208,7 +208,7 @@ architecture fixes and are suitable to offer upstream to Checkmk.
 [`docker/`](docker/) wraps the package into a runnable image, published to GHCR:
 
 ```
-docker pull ghcr.io/<owner>/check-mk-raw:2.3.0p49
+docker pull ghcr.io/<owner>/checkmk-community-arm:2.3.0p49
 ```
 
 [`.github/workflows/docker-image.yml`](.github/workflows/docker-image.yml) is a
