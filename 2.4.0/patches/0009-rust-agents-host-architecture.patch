@@ -1,0 +1,68 @@
+--- agents/Makefile
++++ agents/Makefile
+@@ -96,7 +96,7 @@
+ $(AGENT_CTL):
+ 	$(AGENT_CTL_DIR)/run --setup-environment --build
+ 	mkdir -p linux
+-	install -m 755 $(HOST_PACKAGES_DIR)/target/x86_64-unknown-linux-musl/release/cmk-agent-ctl $(AGENT_CTL)
++	install -m 755 $(HOST_PACKAGES_DIR)/target/$(shell uname -m)-unknown-linux-musl/release/cmk-agent-ctl $(AGENT_CTL)
+ 	strip $(AGENT_CTL)
+ 
+ $(AGENT_CTL_GZ): $(AGENT_CTL)
+@@ -105,7 +105,7 @@
+ $(MK_SQL):
+ 	$(MK_SQL_DIR)/run --setup-environment --build
+ 	mkdir -p linux
+-	install -m 755 $(HOST_PACKAGES_DIR)/target/x86_64-unknown-linux-musl/release/mk-sql $(MK_SQL)
++	install -m 755 $(HOST_PACKAGES_DIR)/target/$(shell uname -m)-unknown-linux-musl/release/mk-sql $(MK_SQL)
+ 	strip $(MK_SQL)
+ 
+ packages: $(DEB_PACKAGE) $(RPM_PACKAGE)
+--- packages/host/cmk-agent-ctl/run
++++ packages/host/cmk-agent-ctl/run
+@@ -128,7 +128,7 @@
+ # TODO: This needs some serious massaging, some stuff probably don't even belong
+ # here, it should probably live in some Gerrit/Jenkins scripts and/or Makefiles.
+ run_setup_environment() {
+-    REPO_DIR="$(git rev-parse --show-toplevel)"
++    REPO_DIR="$(git rev-parse --show-toplevel 2>/dev/null || (cd ../../.. && pwd))"
+ 
+     # When executed via "make deb", e.g. during local builds, these are set and
+     # confuse cargo.
+@@ -143,7 +143,7 @@
+         export CARGO_HOME
+     fi
+ 
+-    export CARGO_BUILD_TARGET="x86_64-unknown-linux-musl"
++    export CARGO_BUILD_TARGET="$(uname -m)-unknown-linux-musl"
+     RUSTFLAGS="
+ $RUSTFLAGS \
+ --remap-path-prefix=${REPO_DIR}=/builddir \
+--- packages/host/mk-sql/run
++++ packages/host/mk-sql/run
+@@ -128,7 +128,7 @@
+ # TODO: This needs some serious massaging, some stuff probably don't even belong
+ # here, it should probably live in some Gerrit/Jenkins scripts and/or Makefiles.
+ run_setup_environment() {
+-    REPO_DIR="$(git rev-parse --show-toplevel)"
++    REPO_DIR="$(git rev-parse --show-toplevel 2>/dev/null || (cd ../../.. && pwd))"
+ 
+     # When executed via "make deb", e.g. during local builds, these are set and
+     # confuse cargo.
+@@ -143,7 +143,7 @@
+         export CARGO_HOME
+     fi
+ 
+-    export CARGO_BUILD_TARGET="x86_64-unknown-linux-musl"
++    export CARGO_BUILD_TARGET="$(uname -m)-unknown-linux-musl"
+     RUSTFLAGS="
+ $RUSTFLAGS \
+ --remap-path-prefix=${REPO_DIR}=/builddir \
+--- packages/host/rust-toolchain.toml
++++ packages/host/rust-toolchain.toml
+@@ -5,4 +5,4 @@
+ targets = ["i686-pc-windows-msvc"]
+ 
+ [toolchain.linux]
+-targets = ["x86_64-unknown-linux-musl", "x86_64-unknown-linux-gnu"]
++targets = ["aarch64-unknown-linux-musl", "aarch64-unknown-linux-gnu"]

@@ -1,0 +1,10 @@
+--- omd/Makefile
++++ omd/Makefile
+@@ -43,7 +43,6 @@
+     check-cert \
+     nrpe \
+     omd \
+-    navicli \
+     pnp4nagios \
+     maintenance \
+     patch \

@@ -1,0 +1,14 @@
+--- MODULE.bazel
++++ MODULE.bazel
+@@ -60,6 +60,11 @@
+     ],
+ )
+ python.toolchain(
++    # We build as root inside a throwaway container. rules_python otherwise
++    # refuses the hermetic interpreter outright:
++    #   "The current user is root, please run as non-root when using the
++    #    hermetic Python interpreter."
++    ignore_root_user_error = True,
+     is_default = True,
+     python_version = "3.12.11",
+ )

@@ -5,7 +5,8 @@
 # them here is what turns "it built" into "it is the package we meant to ship".
 # Runs on the host (or the runner), not in the build container — it deliberately
 # uses a *clean* Debian image for the install test rather than the builder image,
-# because dependency resolution against real bookworm is what has broken before.
+# because dependency resolution against the real target distro is what has broken
+# before.
 #
 #   ci/verify-deb.sh [debs-directory]
 #
@@ -14,7 +15,7 @@
 
 set -Eeuo pipefail
 
-VERSION="${CMK_VERSION:-2.3.0p49}"
+VERSION="${CMK_VERSION:-2.4.0p35}"
 MINOR="${VERSION%%p*}"
 
 case "$MINOR" in
@@ -40,10 +41,24 @@ BASE_IMAGE="debian:${DISTRO}-slim"
 # just reports what it found instead of diffing against an expectation nobody
 # has established yet.
 case "$MINOR" in
-2.3.0 | 2.4.0)
+2.3.0)
 	EXPECTED_X86=(
 		share/check_mk/agents/linux/cmk-agent-ctl
 		share/check_mk/agents/linux/mk-sql
+		share/check_mk/agents/waitmax
+		share/doc/check_mk/treasures/modbus/agents/special/agent_modbus
+	)
+	;;
+2.4.0)
+	# Two changes from 2.3, both consequences of what the release tarball
+	# ships. cmk-agent-ctl and mk-sql are no longer prebuilt in it, so patch
+	# 0009 has them compiled here and they come out aarch64. robotmk's
+	# linux binaries are prebuilt x86-64 downloads from elabit, installed
+	# into the agent payload for deployment to x86 hosts.
+	EXPECTED_X86=(
+		share/check_mk/agents/plugins/robotmk_agent_plugin
+		share/check_mk/agents/robotmk/linux/rcc
+		share/check_mk/agents/robotmk/linux/robotmk_scheduler
 		share/check_mk/agents/waitmax
 		share/doc/check_mk/treasures/modbus/agents/special/agent_modbus
 	)

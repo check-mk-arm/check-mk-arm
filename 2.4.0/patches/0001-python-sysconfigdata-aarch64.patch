@@ -1,0 +1,22 @@
+--- omd/packages/Python/BUILD.Python.bazel
++++ omd/packages/Python/BUILD.Python.bazel
+@@ -96,7 +96,7 @@
+     postfix_script = """
+         py_install_dir="$$BUILD_TMPDIR/{installPrefix}";
+         bin_dir="$$INSTALLDIR/bin";
+-        sysconfig_path="$$INSTALLDIR/lib/python{pyMajMin}/_sysconfigdata__linux_x86_64-linux-gnu.py"
++        sysconfig_path="$$INSTALLDIR/lib/python{pyMajMin}/_sysconfigdata__linux_aarch64-linux-gnu.py"
+         # omd_prefix must be fixed-up to the corresponding omd path (e.g. /omd/versions/2.2.0p2.cee)
+         omd_prefix="/replace-me"
+ 
+--- omd/packages/packages.make
++++ omd/packages/packages.make
+@@ -41,7 +41,7 @@
+ 	#TODO: The following code should be executed by Bazel instead of make
+ 	# Fix sysconfigdata
+ 	$(SED) -i "s|/replace-me|$(OMD_ROOT)|g" \
+-	    $(DESTDIR)/$(OMD_ROOT)/lib/python$(PYTHON_MAJOR_DOT_MINOR)/_sysconfigdata__linux_x86_64-linux-gnu.py
++	    $(DESTDIR)/$(OMD_ROOT)/lib/python$(PYTHON_MAJOR_DOT_MINOR)/_sysconfigdata__linux_aarch64-linux-gnu.py
+ 
+ 	# pre-compile pyc files enforcing `checked-hash` invalidation
+ 	# note: this is a workaround and should be handled in according Bazel project

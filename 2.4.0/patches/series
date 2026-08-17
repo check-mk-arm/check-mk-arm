@@ -1,0 +1,28 @@
+# Applied in this order by lib/build-common.sh::apply_patches.
+# 0001-0099  aarch64 architecture fixes  (offerable upstream to Checkmk)
+# 0100-0199  reachability of downloads   (Checkmk-internal mirrors)
+# 0300-0399  building from the release tarball rather than a git checkout
+0001-python-sysconfigdata-aarch64.patch
+0002-bazel-pathhash-aarch64.patch
+0003-cc-toolchain-aarch64.patch
+0004-net-snmp-perl-archlib-aarch64.patch
+0005-snap7-aarch64-build-profile.patch
+0006-omd-drop-navicli-x86-only.patch
+0007-perl-modules-tar-no-same-owner.patch
+0008-system-libs-aarch64-multiarch.patch
+0009-rust-agents-host-architecture.patch
+0010-python-interpreter-aarch64.patch
+0011-pkgconfig-aarch64-multiarch.patch
+0012-strip-skip-foreign-arch-binaries.patch
+0100-snap7-repackaged-tarball-sha.patch
+0101-jaeger-linux-arm64.patch
+0110-nagios-modern-config-guess.patch
+0111-pnp4nagios-modern-config-guess.patch
+0300-check_mk-idempotent-check-rename.patch
+0301-omd-commit-from-tarball.patch
+0302-python-toolchain-allow-root.patch
+0303-omd-skel-permissions-no-non-free.patch
+0304-check_mk-idempotent-lib-symlink.patch
+0305-idempotent-resumed-install.patch
+0306-bom-fallback-valid-json.patch
+0307-binreplace-any-build-root.patch

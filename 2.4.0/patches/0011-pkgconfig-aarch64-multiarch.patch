@@ -1,0 +1,154 @@
+--- omd/packages/Python/BUILD.Python.bazel
++++ omd/packages/Python/BUILD.Python.bazel
+@@ -78,7 +78,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+ 
+--- omd/packages/freetds/BUILD.freetds.bazel
++++ omd/packages/freetds/BUILD.freetds.bazel
+@@ -42,7 +42,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         #
+         # This is a nasty workaround for Bazel's inability to escape `$ORIGIN`
+--- omd/packages/lcab/BUILD.lcab.bazel
++++ omd/packages/lcab/BUILD.lcab.bazel
+@@ -15,7 +15,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "DESTDIR": "/",
+     },
+--- omd/packages/libgsf/BUILD.libgsf.bazel
++++ omd/packages/libgsf/BUILD.libgsf.bazel
+@@ -48,7 +48,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+     lib_source = ":all_srcs",
+--- omd/packages/mod_fcgid/BUILD.mod_fcgid.bazel
++++ omd/packages/mod_fcgid/BUILD.mod_fcgid.bazel
+@@ -20,7 +20,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+         "APXS": "$$(which apxs2 || which apxs)",
+--- omd/packages/mod_wsgi/BUILD.mod_wsgi.bazel
++++ omd/packages/mod_wsgi/BUILD.mod_wsgi.bazel
+@@ -24,7 +24,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+         "CFLAGS": "-I$${EXT_BUILD_DEPS}/python/include/python%s/" % PYTHON_MAJOR_DOT_MINOR,
+--- omd/packages/monitoring-plugins/BUILD.monitoring-plugins.bazel
++++ omd/packages/monitoring-plugins/BUILD.monitoring-plugins.bazel
+@@ -72,7 +72,7 @@
+     "PKG_CONFIG_PATH": ":".join([
+         "/usr/lib/pkgconfig",
+         "/usr/lib64/pkgconfig",
+-        "/usr/lib/x86_64-linux-gnu/pkgconfig",
++        "/usr/lib/aarch64-linux-gnu/pkgconfig",
+     ]),
+     #
+     # This is a nasty workaround for Bazel's inability to escape `$ORIGIN`
+--- omd/packages/msitools/BUILD.msitools.bazel
++++ omd/packages/msitools/BUILD.msitools.bazel
+@@ -25,7 +25,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     } | select(
+         {
+--- omd/packages/nagios/BUILD.nagios.bazel
++++ omd/packages/nagios/BUILD.nagios.bazel
+@@ -71,7 +71,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+     },
+--- omd/packages/net-snmp/BUILD.net-snmp.bazel
++++ omd/packages/net-snmp/BUILD.net-snmp.bazel
+@@ -90,7 +90,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+         "RANLIB": "ranlib",
+--- omd/packages/pnp4nagios/BUILD.pnp4nagios.bazel
++++ omd/packages/pnp4nagios/BUILD.pnp4nagios.bazel
+@@ -37,7 +37,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+     lib_source = ":all_srcs",
+--- omd/packages/stunnel/BUILD.stunnel.bazel
++++ omd/packages/stunnel/BUILD.stunnel.bazel
+@@ -61,7 +61,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+     },
+--- omd/packages/xinetd/BUILD.xinetd.bazel
++++ omd/packages/xinetd/BUILD.xinetd.bazel
+@@ -23,7 +23,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+     },
+--- omd/packages/xmlsec1/BUILD.xmlsec1.bazel
++++ omd/packages/xmlsec1/BUILD.xmlsec1.bazel
+@@ -42,7 +42,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+     },

@@ -1,0 +1,63 @@
+# Our Bazel overrides for the arm64 build. build.sh installs this file as
+# /etc/ci.bazelrc, which is the LAST `try-import` in upstream's .bazelrc — so
+# everything here beats what .bazelrc sets above it. Bazel applies rc options in
+# order and the last one wins, which is why these cannot live in user.bazelrc:
+# that is imported on line 2, before the settings we need to override.
+#
+# NOTE: upstream's own build images put `common --config=ci` here. We must not.
+# --config=ci registers the x86-64 /opt/gcc-14.2.0 toolchain, sets
+# --@//:filesystem_layout=FILESYSTEM_LAYOUT_INVALID and turns on remote-cache
+# uploads.
+
+# Patch 0010 edits MODULE.bazel (to add an aarch64 CPython), which invalidates
+# MODULE.bazel.lock — and .bazelrc sets --lockfile_mode=error.
+common --lockfile_mode=update
+
+# The aarch64 C++ toolchain added by patch 0003. --extra_toolchains has
+# precedence over the x86-64 one MODULE.bazel registers *and* over Bazel's
+# auto-detected fallback, which would otherwise be used silently — without
+# -std=c++20, which livestatus and neb need.
+build --extra_toolchains=//bazel/toolchains/cc:linux_gcc14_aarch64
+
+# Upstream: cpu=HOST_CPUS-2, memory=HOST_RAM*.5. Pinned instead of derived so
+# the 4-core build box and the 4-vCPU CI runner behave identically, and so the
+# C++ links do not race Bazel's JVM into the OOM killer (no swap on either).
+common --local_resources=cpu=3
+common --local_resources=memory=11000
+common --jobs=3
+
+# /root is bind-mounted, so the disk cache survives container recreation and a
+# `bazel clean`. The distdir holds the archives whose upstream URLs are dead or
+# unreachable (see build.sh: EXTRA_SEEDS, snap7, perl modules).
+common --disk_cache=/root/.cache/bazel-disk
+common --distdir=/opt/build-mk/distdir
+
+# bazel_downloader.cfg rewrites github.com, files.pythonhosted.org and friends
+# through bazel-registry.lan.checkmk.net first. run.sh points that name at
+# 127.0.0.1 so the probe fails instantly instead of hanging; pointing the
+# downloader at an empty config skips it altogether.
+common --experimental_downloader_config=/etc/bazel-downloader-none.cfg
+
+# Same reasoning for the Go module proxy, whose first entry in .bazelrc is that
+# same unreachable host.
+common --repo_env=GOPROXY=https://proxy.golang.org,direct
+common --repo_env=GOSUMDB=sum.golang.org
+
+# python3-modules pip-installs every module with --no-binary=:all:, so bcrypt,
+# cryptography and friends are compiled from source and need a Rust toolchain.
+# .bazelrc pins the action PATH to /usr/bin:/bin for hermeticity, which hides the
+# rustup installation under /opt and gets "error: can't find Rust compiler".
+# Upstream's build images solve this by symlinking tools into /usr/bin (see the
+# --incompatible_strict_action_env comment in .bazelrc); adding the directory to
+# the action PATH is the same fix without a second copy of the toolchain.
+#
+# CARGO_HOME has to come along: the action environment has no $HOME, so cargo
+# cannot fall back to ~/.cargo for its registry cache. RUSTUP_HOME is already
+# forwarded by scripts/run-bazel.sh when it is set in the environment.
+#
+# Note both of these are part of every action's cache key, so changing them
+# invalidates the whole Bazel cache.
+build --action_env=PATH=/usr/bin:/bin:/opt/rust/cargo/bin
+build --host_action_env=PATH=/usr/bin:/bin:/opt/rust/cargo/bin
+build --action_env=CARGO_HOME=/opt/rust/cargo
+build --host_action_env=CARGO_HOME=/opt/rust/cargo

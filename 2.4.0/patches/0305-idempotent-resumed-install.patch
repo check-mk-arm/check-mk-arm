@@ -1,0 +1,22 @@
+--- omd/packages/rabbitmq/rabbitmq.make
++++ omd/packages/rabbitmq/rabbitmq.make
+@@ -10,7 +10,7 @@
+ 
+ .PHONY: $(RABBITMQ_INSTALL)
+ $(RABBITMQ_INSTALL): $(RABBITMQ_BUILD)
+-	$(RM) $(DESTDIR)$(OMD_ROOT)/lib/rabbitmq
++	$(RM) -r $(DESTDIR)$(OMD_ROOT)/lib/rabbitmq
+ 	tar -xzf $(RABBITMQ_BAZEL_OUT)/rabbitmq.tar.gz -C $(DESTDIR)$(OMD_ROOT)/lib/
+ 	install -m 755 $(PACKAGE_DIR)/$(RABBITMQ)/RABBITMQ_PORT $(DESTDIR)$(OMD_ROOT)/lib/omd/hooks/
+ 	install -m 755 $(PACKAGE_DIR)/$(RABBITMQ)/RABBITMQ_MANAGEMENT_PORT $(DESTDIR)$(OMD_ROOT)/lib/omd/hooks/
+--- omd/Makefile
++++ omd/Makefile
+@@ -191,7 +191,7 @@
+ 
+ $(INSTALL_GLOBAL): $(SKEL_PERMISSIONS) $(BOM)
+ 	# Create link to default version
+-	ln -sf $(OMD_VERSION) $(DESTDIR)$(OMD_BASE)/versions/default
++	ln -sfn $(OMD_VERSION) $(DESTDIR)$(OMD_BASE)/versions/default
+ 
+ 	# Create global symbolic links. Those links are share between
+ 	# all installed versions and refer to the default version.

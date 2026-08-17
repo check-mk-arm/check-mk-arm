@@ -1,0 +1,17 @@
+--- scripts/run-bazel.sh
++++ scripts/run-bazel.sh
+@@ -39,10 +39,10 @@
+     python3 \
+         "${ROOT_DIR}"/scripts/create_build_environment_variables.py \
+         "eval:os-release-name:cat /etc/os-release | grep PRETTY | cut -d '\"' -f2" \
+-        "pathhash:/usr/lib/x86_64-linux-gnu/libc.so" \
+-        "pathhash:/lib64/libc.so.6" \
+-        "pathhash:/usr/lib64/libc.so" \
+-        "pathhash:/opt/gcc-14.2.0"
++        "pathhash:/usr/lib/aarch64-linux-gnu/libc.so" \
++        "pathhash:/usr/lib/aarch64-linux-gnu/libc.so.6" \
++        "pathhash:/usr/lib/gcc/aarch64-linux-gnu" \
++        "pathhash:/usr/bin/gcc"
+ )"
+ 
+ eval "${BUILD_ENVIRONMENT}"

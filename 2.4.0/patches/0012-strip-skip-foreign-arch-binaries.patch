@@ -1,0 +1,38 @@
+--- omd/strip_binaries
++++ omd/strip_binaries
+@@ -19,6 +19,7 @@
+ """
+ 
+ import argparse
++import platform
+ import stat
+ import struct
+ import subprocess
+@@ -68,6 +69,14 @@
+ ELF_VERSION = 1
+ ELF_TYPE_EXECUTABLE = 2
+ ELF_TYPE_SHARED_OBJECT = 3
++# e_machine (EM_* in elf.h). Debian's binutils is built for the native target
++# only, so handing strip(1) a foreign-architecture binary fails outright with
++# "Unable to recognise the format of the input file". The tree legitimately
++# contains foreign binaries: everything under share/check_mk/agents is a payload
++# shipped for deployment to other hosts, not something that runs on the server.
++# On x86-64 hosts every binary is native, so nothing changes there.
++ELF_MACHINE_BY_HOST = {"x86_64": 0x3E, "aarch64": 0xB7}
++ELF_MACHINE_HOST = ELF_MACHINE_BY_HOST.get(platform.machine())
+ 
+ 
+ def is_so_or_exec_elf_file(file: Path) -> bool:
+@@ -91,7 +100,12 @@
+         return False
+ 
+     elf_type = struct.unpack_from(short_format, head, 0x10)[0]
++    machine = struct.unpack_from(short_format, head, 0x12)[0]
+     vers = struct.unpack_from(long_format, head, 0x14)[0]
++
++    if ELF_MACHINE_HOST is not None and machine != ELF_MACHINE_HOST:
++        return False
++
+     if vers != ELF_VERSION:
+         return False
+ 

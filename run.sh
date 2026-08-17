@@ -20,7 +20,7 @@
 
 set -Eeuo pipefail
 
-VERSION="${CMK_VERSION:-2.3.0p49}"
+VERSION="${CMK_VERSION:-2.4.0p35}"
 MINOR="${VERSION%%p*}"
 
 case "$MINOR" in
@@ -143,7 +143,7 @@ cmd_reset_src() {
 	docker exec "$CONTAINER" bash -lc "
 		rm -rf /opt/build-mk/check-mk-raw-${VERSION}.cre \
 		       /opt/build-mk/check-mk-raw-${VERSION}.cre.unpacking
-		rm -f /opt/build-mk/state/{unpack-src,patch,windows-artifacts,venv,build-deb,collect}.done
+		rm -f /opt/build-mk/state/{unpack-src,patch,windows-artifacts,venv,frontend,build-deb,collect}.done
 	" || die "reset failed — is the container running? ($0 up)"
 	echo "done"
 }

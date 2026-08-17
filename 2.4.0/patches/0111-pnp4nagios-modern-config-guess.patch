@@ -1,0 +1,13 @@
+--- omd/packages/pnp4nagios/pnp4nagios_http.bzl
++++ omd/packages/pnp4nagios/pnp4nagios_http.bzl
+@@ -8,6 +8,10 @@
+         name = "pnp4nagios",
+         build_file = "@omd_packages//omd/packages/pnp4nagios:BUILD.pnp4nagios.bazel",
+         strip_prefix = "pnp4nagios-" + version_str,
++        patch_cmds = [
++            "find . -name config.guess | xargs -r -I% cp -f /usr/share/misc/config.guess %",
++            "find . -name config.sub | xargs -r -I% cp -f /usr/share/misc/config.sub %",
++        ],
+         urls = [
+             UPSTREAM_MIRROR_URL + filename,
+             "https://sourceforge.net/projects/pnp4nagios/files/PNP-0.6/" + filename,

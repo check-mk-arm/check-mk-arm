@@ -1,0 +1,17 @@
+--- omd/Makefile
++++ omd/Makefile
+@@ -180,11 +180,12 @@
+ 	        OUTPUT="$${OUTPUT}# $$p\n$$(cat $$p/skel.permissions)\n"; \
+ 	    fi ; \
+ 	done ; \
+-	cd ../../non-free/packages ; for p in $(PACKAGES) ; do \
++	cd .. ; if [ -d ../non-free/packages ]; then cd ../non-free/packages ; for p in $(PACKAGES) ; do \
+ 	    if [ -d $$p ] && [ -e $$p/skel.permissions ] ; then \
+ 	        OUTPUT="$${OUTPUT}# $$p\n$$(cat $$p/skel.permissions)\n"; \
+ 	    fi ; \
+-	done ; \
++	done ; fi ; \
++	cd $(REPO_PATH) ; \
+ 	bazel build //omd:skel_permissions_$(EDITION_SHORT) ; \
+ 	OUTPUT="$${OUTPUT}# Bazel\n$$(cat $(REPO_PATH)/bazel-bin/omd/skel.permissions_$(EDITION_SHORT))\n" ; \
+ 	echo -e "$$OUTPUT" > $(SKEL_PERMISSIONS)

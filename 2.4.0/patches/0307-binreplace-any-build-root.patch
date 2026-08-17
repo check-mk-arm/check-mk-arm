@@ -1,0 +1,22 @@
+--- omd/packages/openssl/BUILD
++++ omd/packages/openssl/BUILD
+@@ -94,7 +94,7 @@
+     out = "lib/libcrypto.so.3." + edition,
+     intermediate_out = "lib/libcrypto.so.3.replaced",
+     new_value = "/omd/versions/{version}.%s/" % edition,
+-    reg_ex = "/home/.*?/openssl.build_tmpdir/openssl/",
++    reg_ex = "/[^\\x00]*?/openssl.build_tmpdir/openssl/",
+     tool = ":binreplace_binary",
+     value = "//:cmk_version",
+ ) for edition in [
+--- omd/packages/packages.make
++++ omd/packages/packages.make
+@@ -62,7 +62,7 @@
+ 	$(REPO_PATH)/omd/run-binreplace \
+ 	    --regular-expression \
+ 	    --inplace \
+-	    "/home/.*?/openssl.build_tmpdir/openssl/" \
++	    "/[^\\x00]*?/openssl.build_tmpdir/openssl/" \
+ 	    "$(OMD_ROOT)/" \
+ 	    "$(DESTDIR)$(OMD_ROOT)/lib/libcrypto.so.3"
+ 

@@ -1,0 +1,17 @@
+--- MODULE.bazel
++++ MODULE.bazel
+@@ -51,6 +51,14 @@
+         "https://github.com/astral-sh/python-build-standalone/releases/download/20250604/cpython-3.12.11+20250604-x86_64-unknown-linux-gnu-install_only.tar.gz",
+     ],
+ )
++python.single_version_platform_override(
++    platform = "aarch64-unknown-linux-gnu",
++    python_version = "3.12.11",
++    sha256 = "d6543614e5d9b2a51183ce8753a32edb7763c4d514c44f867c58e61332e98254",
++    urls = [
++        "https://github.com/astral-sh/python-build-standalone/releases/download/20250604/cpython-3.12.11+20250604-aarch64-unknown-linux-gnu-install_only.tar.gz",
++    ],
++)
+ python.toolchain(
+     is_default = True,
+     python_version = "3.12.11",

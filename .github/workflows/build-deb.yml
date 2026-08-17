@@ -20,9 +20,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Checkmk version, e.g. 2.3.0p49"
+        description: "Checkmk version, e.g. 2.4.0p35"
         required: true
-        default: "2.3.0p49"
+        default: "2.4.0p35"
       release:
         description: "Release the package if the build passes"
         type: choice
@@ -51,7 +51,7 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
     env:
       # Used when nothing else supplies a version, i.e. a push to ci/**.
-      DEFAULT_VERSION: "2.3.0p49"
+      DEFAULT_VERSION: "2.4.0p35"
       # The runner has 16 GB against the build box's 23 GB. Peak measured RSS is
       # 5.3 GiB, so this is headroom, not a budget.
       MEMORY: 13g
@@ -69,7 +69,7 @@ jobs:
           # Also the gate that stops an odd input reaching a shell below, and
           # that catches a typo before it costs a few hours of runner.
           [[ "$v" =~ ^2\.[0-9]+\.[0-9]+p[0-9]+$ ]] ||
-            { echo "::error::'$v' is not a Checkmk version like 2.3.0p49"; exit 1; }
+            { echo "::error::'$v' is not a Checkmk version like 2.4.0p35"; exit 1; }
           echo "CMK_VERSION=$v" >> "$GITHUB_ENV"
           # A job output as well, because $GITHUB_ENV does not cross job
           # boundaries and the docker-image job needs the resolved version.
