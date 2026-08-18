@@ -3,7 +3,8 @@
 #
 # Sets:
 #   IMAGE_NAME     checkmk-community-arm
-#   CMK_VERSION    Checkmk version taken from the .deb filename (e.g. 2.3.0p49)
+#   CMK_EDITION    edition taken from the .deb filename (raw, or community from 2.5)
+#   CMK_VERSION    Checkmk version taken from the .deb filename (e.g. 2.5.0p11)
 #   DISTRO_CODE    distro the .deb was built for (e.g. bookworm)
 #   IMAGE_VERSION  primary tag
 #   IMAGE_TAG      $IMAGE_NAME:$IMAGE_VERSION   (kept for backwards compatibility)
@@ -11,10 +12,11 @@
 
 IMAGE_NAME=checkmk-community-arm
 
-# The .deb is the source of truth: its name encodes both the Checkmk version and
-# the distro it was built against.
-#   check-mk-raw-2.3.0p49_0.bookworm_arm64.deb
-_deb=$(ls check-mk-raw-*_arm64.deb 2>/dev/null | head -1)
+# The .deb is the source of truth: its name encodes the edition, the Checkmk
+# version and the distro it was built against.
+#   check-mk-raw-2.4.0p35_0.trixie_arm64.deb        2.4 and earlier
+#   check-mk-community-2.5.0p11_0.trixie_arm64.deb  2.5 renamed Raw to Community
+_deb=$(ls check-mk-raw-*_arm64.deb check-mk-community-*_arm64.deb 2>/dev/null | head -1)
 
 # This file is sourced, so it cannot simply `exit`. `return` is the correct verb
 # when sourced; the `|| exit 1` fallback covers being run directly.
@@ -24,14 +26,16 @@ _fail() {
 }
 
 if [ -z "${_deb:-}" ]; then
-	_fail "no check-mk-raw-*_arm64.deb found in $(pwd)"
+	_fail "no check-mk-{raw,community}-*_arm64.deb found in $(pwd)"
 	return 1 2>/dev/null || exit 1
 else
-	_base=${_deb%_arm64.deb}          # check-mk-raw-2.3.0p49_0.bookworm
-	CMK_VERSION=${_base%%_*}          # check-mk-raw-2.3.0p49
-	CMK_VERSION=${CMK_VERSION#check-mk-raw-}
-	DISTRO_CODE=${_base##*.}          # bookworm
-	echo "version.sh: deb=$_deb version=$CMK_VERSION distro=$DISTRO_CODE"
+	_base=${_deb%_arm64.deb}          # check-mk-community-2.5.0p11_0.trixie
+	CMK_VERSION=${_base%%_*}          # check-mk-community-2.5.0p11
+	CMK_EDITION=${CMK_VERSION%-*}     # check-mk-community
+	CMK_EDITION=${CMK_EDITION#check-mk-}
+	CMK_VERSION=${CMK_VERSION##*-}    # 2.5.0p11
+	DISTRO_CODE=${_base##*.}          # trixie
+	echo "version.sh: deb=$_deb edition=$CMK_EDITION version=$CMK_VERSION distro=$DISTRO_CODE"
 fi
 
 # A tagged pipeline must ship the version it claims to ship. Nothing previously

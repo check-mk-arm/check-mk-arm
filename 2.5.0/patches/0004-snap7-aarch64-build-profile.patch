@@ -1,0 +1,93 @@
+--- omd/packages/snap7/snap7_repository.bzl
++++ omd/packages/snap7/snap7_repository.bzl
+@@ -10,21 +10,34 @@
+ _SEVEN_ZIP_EXTRACT_DIR_NAME = "7zip"
+ _SEVEN_ZIP_VERSION = "25.01"
+ _SEVEN_ZIP_ARCHIVE_TYPE = "tar.xz"
+-_SEVEN_ZIP_SHA256 = "4ca3b7c6f2f67866b92622818b58233dc70367be2f36b498eb0bdeaaa44b53f4"
++
++# The 7zip binary that unpacks the .7z has to run on the *host*, so it is
++# selected by repository_ctx.os.arch rather than hardcoded to x64.
++_SEVEN_ZIP_BY_ARCH = {
++    "amd64": ("x64", "4ca3b7c6f2f67866b92622818b58233dc70367be2f36b498eb0bdeaaa44b53f4"),
++    "x86_64": ("x64", "4ca3b7c6f2f67866b92622818b58233dc70367be2f36b498eb0bdeaaa44b53f4"),
++    "aarch64": ("arm64", "39c5140f02ce4436599303c59a149f654cb1bbc47cdc105a942120d747ae040d"),
++    "arm64": ("arm64", "39c5140f02ce4436599303c59a149f654cb1bbc47cdc105a942120d747ae040d"),
++}
+ _SEVEN_ZIP_BINARY = "7zz"
+ 
+-def _get_7zip_url():
+-    """Get the 7zip download URL constructed from version and archive type."""
++def _get_7zip(repository_ctx):
++    """Get the 7zip download URL and sha256 for the host architecture."""
++    arch = repository_ctx.os.arch
++    if arch not in _SEVEN_ZIP_BY_ARCH:
++        fail("No 7zip build known for host architecture '{}'".format(arch))
++    suffix, sha256 = _SEVEN_ZIP_BY_ARCH[arch]
+     version_no_dot = _SEVEN_ZIP_VERSION.replace(".", "")
+-    return "https://www.7-zip.org/a/7z{}-linux-x64.{}".format(version_no_dot, _SEVEN_ZIP_ARCHIVE_TYPE)
++    url = "https://www.7-zip.org/a/7z{}-linux-{}.{}".format(version_no_dot, suffix, _SEVEN_ZIP_ARCHIVE_TYPE)
++    return url, sha256
+ 
+ def _download_7zip(repository_ctx):
+     """Download and extract 7zip binary from official source."""
+-    url = _get_7zip_url()
++    url, sha256 = _get_7zip(repository_ctx)
+     result = repository_ctx.download_and_extract(
+         url = url,
+         type = _SEVEN_ZIP_ARCHIVE_TYPE,
+-        sha256 = _SEVEN_ZIP_SHA256,
++        sha256 = sha256,
+         output = _SEVEN_ZIP_EXTRACT_DIR_NAME,
+     )
+     if not result.success:
+@@ -74,6 +87,24 @@
+     # Remove the now-empty extracted directory
+     repository_ctx.delete(extract_dir)
+ 
++def _add_aarch64_build_profile(repository_ctx):
++    """Derive build/unix/aarch64_linux.mk from upstream's arm_v6_linux.mk.
++
++    snap7 ships one makefile per architecture and 1.4.2 has no aarch64 profile
++    (i386, x86_64, arm_v6, arm_v7, mips only). The arm_v6 one differs from the
++    aarch64 one purely in the string "arm_v6", which names the output directory
++    and the target: the compiler is the plain host g++ either way. This is the
++    same derivation Checkmk's own commented-out `snap7-repackage` target did.
++    """
++    src = repository_ctx.path("build/unix/arm_v6_linux.mk")
++    if not src.exists:
++        fail("snap7 archive has no build/unix/arm_v6_linux.mk to derive aarch64 from")
++    repository_ctx.file(
++        "build/unix/aarch64_linux.mk",
++        repository_ctx.read(src).replace("arm_v6", "aarch64"),
++        executable = False,
++    )
++
+ def _snap7_repository_impl(repository_ctx):
+     """Implementation of the snap7 repository rule."""
+ 
+@@ -88,6 +119,8 @@
+     repository_ctx.report_progress("Setting up repository")
+     _move_extracted_files_to_root(repository_ctx, extract_dir)
+ 
++    _add_aarch64_build_profile(repository_ctx)
++
+     build_snap7_content = repository_ctx.read(repository_ctx.attr.build_file)
+     repository_ctx.file("BUILD.bazel", build_snap7_content)
+ 
+--- omd/packages/snap7/BUILD.snap7.bazel
++++ omd/packages/snap7/BUILD.snap7.bazel
+@@ -15,9 +15,11 @@
+     name = "snap7",
+     args = [
+         "-j4",
+-        "-C build/unix -f x86_64_linux.mk",
+         "LibInstall=$INSTALLDIR",
+-    ],
++    ] + select({
++        "@platforms//cpu:aarch64": ["-C build/unix -f aarch64_linux.mk"],
++        "//conditions:default": ["-C build/unix -f x86_64_linux.mk"],
++    }),
+     lib_source = ":all_srcs",
+     linkopts = ["-Wl,--strip-all"],
+     out_lib_dir = "",

@@ -20,12 +20,13 @@
 
 set -Eeuo pipefail
 
-VERSION="${CMK_VERSION:-2.4.0p35}"
+VERSION="${CMK_VERSION:-2.5.0p11}"
 MINOR="${VERSION%%p*}"
 
 case "$MINOR" in
 2.3.0) DISTRO=bookworm ;;
 2.4.0) DISTRO=trixie ;;
+2.5.0) DISTRO=trixie ;;
 *) echo "unknown Checkmk minor '$MINOR' — teach run.sh its distro" >&2; exit 1 ;;
 esac
 
@@ -118,8 +119,11 @@ cmd_build() {
 	elif [ -t 0 ]; then
 		flags=(-it)
 	fi
+	# CI is forwarded because build.sh turns the Bazel disk cache off when it
+	# is set: on a runner every build is cold, so the cache is 12 GB of pure
+	# overhead against a disk budget that has none to spare.
 	docker exec "${flags[@]}" "$CONTAINER" \
-		bash -lc "CMK_VERSION=$VERSION /opt/build-mk/recipe/build.sh $*"
+		bash -lc "CMK_VERSION=$VERSION CI=${CI:-} /opt/build-mk/recipe/build.sh $*"
 	[ "${flags[0]:-}" = "-d" ] && echo "detached — follow with: $0 logs"
 	return 0
 }
@@ -140,10 +144,14 @@ cmd_reset_src() {
 	echo "keeping: source tarball, donor deb, distdir/, /root caches"
 	# Must run inside the container: the tree is written by root there, so a
 	# host-side rm as an unprivileged user fails on every file.
+	# 2.5 renamed the Raw edition to "community" and dropped the edition short
+	# code from the tarball, so the unpacked tree has a different name.
 	docker exec "$CONTAINER" bash -lc "
 		rm -rf /opt/build-mk/check-mk-raw-${VERSION}.cre \
-		       /opt/build-mk/check-mk-raw-${VERSION}.cre.unpacking
-		rm -f /opt/build-mk/state/{unpack-src,patch,windows-artifacts,venv,frontend,build-deb,collect}.done
+		       /opt/build-mk/check-mk-raw-${VERSION}.cre.unpacking \
+		       /opt/build-mk/check-mk-community-${VERSION} \
+		       /opt/build-mk/check-mk-community-${VERSION}.unpacking
+		rm -f /opt/build-mk/state/{unpack-src,patch,windows-artifacts,donor-artifacts,repin-crates,venv,frontend,build-deb,collect}.done
 	" || die "reset failed — is the container running? ($0 up)"
 	echo "done"
 }
@@ -186,7 +194,7 @@ cmd_watch() {
 		printf '%s root=%dG data=%dG cache=%s tree=%s%s\n' \
 			"$(date +%FT%T)" $((root_kb / 1048576)) $((data_kb / 1048576)) \
 			"$(du -sh "$HOMEDIR/.cache" 2>/dev/null | cut -f1 || echo -)" \
-			"$(du -sh "$WORK/check-mk-raw-${VERSION}.cre" 2>/dev/null | cut -f1 || echo -)" \
+			"$(du -sh "$WORK"/check-mk-{raw-${VERSION}.cre,community-${VERSION}} 2>/dev/null | tail -1 | cut -f1 || echo -)" \
 			"$(docker stats --no-stream --format ' mem={{.MemUsage}} cpu={{.CPUPerc}}' "$CONTAINER" 2>/dev/null || true)"
 
 		if [ "$data_kb" -lt "$MIN_DATA_KB" ] || [ "$root_kb" -lt "$MIN_ROOT_KB" ]; then

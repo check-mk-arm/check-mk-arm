@@ -1,0 +1,26 @@
+--- omd/BUILD
++++ omd/BUILD
+@@ -566,7 +566,10 @@
+ 
+ [pkg_name_info(
+     name = "cmk_pkg_variables_" + edition,
+-    architecture = "amd64",
++    architecture = select({
++        "@platforms//cpu:aarch64": "arm64",
++        "//conditions:default": "amd64",
++    }),
+     cmk_version = "@cmk//version",
+     package = "check-mk-" + edition,
+     tags = ["manual"],
+@@ -605,7 +608,10 @@
+ 
+ [pkg_deb(
+     name = "deb_" + edition,
+-    architecture = "amd64",
++    architecture = select({
++        "@platforms//cpu:aarch64": "arm64",
++        "//conditions:default": "amd64",
++    }),
+     config = "//omd/debian:config",
+     data = "complete_install_compressed_" + edition,
+     depends_file = "//omd/distros:dependencies",

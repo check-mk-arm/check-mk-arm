@@ -15,19 +15,22 @@
 
 set -Eeuo pipefail
 
-VERSION="${CMK_VERSION:-2.4.0p35}"
+VERSION="${CMK_VERSION:-2.5.0p11}"
 MINOR="${VERSION%%p*}"
 
+# 2.5 renamed the Raw edition to "community", which changes the package name and
+# the `<version>.<edition>` directory the package installs into.
 case "$MINOR" in
-2.2.0) DISTRO=bookworm ;;
-2.3.0) DISTRO=bookworm ;;
-2.4.0) DISTRO=trixie ;;
+2.2.0) DISTRO=bookworm; EDITION=raw; EDITION_SHORT=cre ;;
+2.3.0) DISTRO=bookworm; EDITION=raw; EDITION_SHORT=cre ;;
+2.4.0) DISTRO=trixie;   EDITION=raw; EDITION_SHORT=cre ;;
+2.5.0) DISTRO=trixie;   EDITION=community; EDITION_SHORT=community ;;
 *) echo "unknown Checkmk minor '$MINOR' — teach verify-deb.sh its distro" >&2; exit 1 ;;
 esac
 
 DATA="${CMK_DATA:-/data/checkmk}"
 DEBDIR="${1:-$DATA/work/$VERSION/debs}"
-DEB="$DEBDIR/check-mk-raw-${VERSION}_0.${DISTRO}_arm64.deb"
+DEB="$DEBDIR/check-mk-${EDITION}-${VERSION}_0.${DISTRO}_arm64.deb"
 BASE_IMAGE="debian:${DISTRO}-slim"
 
 # The x86-64 binaries that are *supposed* to be in an arm64 package: agent
@@ -61,6 +64,27 @@ case "$MINOR" in
 		share/check_mk/agents/robotmk/linux/robotmk_scheduler
 		share/check_mk/agents/waitmax
 		share/doc/check_mk/treasures/modbus/agents/special/agent_modbus
+	)
+	;;
+2.5.0)
+	# Four changes from 2.4. mk-oracle arrived as a prebuilt binary shipped
+	# in the tarball (Linux and Solaris builds, both x86-64), robotmk gained
+	# micromamba, and cmk-agent-ctl and mk-sql are back on the list because
+	# 2.5 no longer builds them here at all: they are musl payloads for
+	# monitored hosts, lifted from the donor package by build.sh's
+	# donor-artifacts stage. The aarch64 agent controller upstream started
+	# shipping in 2.5 (werk #19275) comes from the same place and is
+	# correctly absent from this list.
+	EXPECTED_X86=(
+		lib/python3/cmk/plugins/oracle/agents/mk-oracle
+		lib/python3/cmk/plugins/oracle/agents/mk-oracle.solaris
+		share/check_mk/agents/linux/cmk-agent-ctl
+		share/check_mk/agents/linux/mk-sql
+		share/check_mk/agents/plugins/robotmk_agent_plugin
+		share/check_mk/agents/robotmk/linux/micromamba
+		share/check_mk/agents/robotmk/linux/rcc
+		share/check_mk/agents/robotmk/linux/robotmk_scheduler
+		share/check_mk/agents/waitmax
 	)
 	;;
 *) EXPECTED_X86=() ;;
@@ -105,7 +129,7 @@ check_field() { # check_field <field> <expected>
 	got=$(sed -n "s/^ $1: //p" <<<"$control")
 	[ "$got" = "$2" ] && pass "$1: $got" || fail "$1: got '$got', want '$2'"
 }
-check_field Package "check-mk-raw-${VERSION}"
+check_field Package "check-mk-${EDITION}-${VERSION}"
 check_field Version "0.${DISTRO}"
 check_field Architecture arm64
 
@@ -117,8 +141,8 @@ step "ELF architecture sweep"
 EXTRACT=$(mktemp -d)
 dpkg-deb -x "$DEB" "$EXTRACT"
 
-VERDIR="$EXTRACT/opt/omd/versions/${VERSION}.cre"
-[ -d "$VERDIR" ] || die "no version directory at opt/omd/versions/${VERSION}.cre"
+VERDIR="$EXTRACT/opt/omd/versions/${VERSION}.${EDITION_SHORT}"
+[ -d "$VERDIR" ] || die "no version directory at opt/omd/versions/${VERSION}.${EDITION_SHORT}"
 
 # file(1) over the whole tree reads only headers and takes well under a minute;
 # testing each file from the shell instead costs a minute and a half. Note the

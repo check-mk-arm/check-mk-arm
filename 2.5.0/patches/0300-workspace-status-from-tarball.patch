@@ -1,0 +1,30 @@
+--- bazel/tools/workspace_status.sh
++++ bazel/tools/workspace_status.sh
+@@ -1,8 +1,24 @@
+ #!/bin/bash
+ set -e
+ 
+-# A stable identifier: commit hash
+-echo "STABLE_GIT_COMMIT $(git rev-parse HEAD)"
++# Both values come from git in a checkout. A release tarball is not a git
++# repository -- `git rev-parse HEAD` exits 128 and, under `set -e`, takes the
++# whole build with it. `make dist` ships the commit it was cut from in a
++# top-level COMMIT file, so prefer that and keep git as the fallback.
++if [ -r COMMIT ]; then
++    commit=$(cat COMMIT)
++else
++    commit=$(git rev-parse HEAD)
++fi
+ 
+ # Volatile: last git commit timestamp in ISO 8601 format UTC (for OCI image metadata)
+-echo "BUILD_TIMESTAMP_ISO $(date -u -d @"$(git log -1 --format=%ct HEAD)" +%Y-%m-%dT%H:%M:%SZ)"
++if commit_epoch=$(git log -1 --format=%ct HEAD 2>/dev/null) && [ -n "$commit_epoch" ]; then
++    :
++else
++    commit_epoch=${SOURCE_DATE_EPOCH:-0}
++fi
++
++# A stable identifier: commit hash
++echo "STABLE_GIT_COMMIT $commit"
++
++echo "BUILD_TIMESTAMP_ISO $(date -u -d @"$commit_epoch" +%Y-%m-%dT%H:%M:%SZ)"

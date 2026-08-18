@@ -10,6 +10,7 @@
 # so a .bookworm deb will not install on trixie.
 #   Checkmk 2.3.x -> bookworm
 #   Checkmk 2.4.x -> trixie
+#   Checkmk 2.5.x -> trixie
 ARG DISTRO_CODE=bookworm
 FROM debian:${DISTRO_CODE}-slim
 
@@ -68,10 +69,12 @@ RUN set -eux; \
 # where every `;` discarded the preceding command's exit status, so a failed
 # install still produced a "successful" image. apt handles local .deb files
 # directly, which is both simpler and correct.
-COPY check-mk-raw-*.deb /tmp/
+# check-mk-raw-* up to 2.4, check-mk-community-* from 2.5 (the Raw edition was
+# renamed); exactly one of the two is ever present.
+COPY check-mk-*.deb /tmp/
 RUN set -eux; \
     apt-get update; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/check-mk-raw-*.deb; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/check-mk-*.deb; \
     omd version; \
     dpkg --print-architecture; \
     AGENT_DEB="$(ls /omd/versions/default/share/check_mk/agents/check-mk-agent_*.deb 2>/dev/null | head -1)"; \

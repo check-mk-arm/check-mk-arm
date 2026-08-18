@@ -1,0 +1,25 @@
+--- bazel/thirdparty/modules/nagios/3.5.1.cmk.2/overlay/BUILD.bazel
++++ bazel/thirdparty/modules/nagios/3.5.1.cmk.2/overlay/BUILD.bazel
+@@ -38,6 +38,11 @@
+     ],
+     configure_in_place = True,
+     configure_options = [
++        # nagios 3.5.1 (2013) ships config.guess from 2006, which predates
++        # aarch64 and aborts configure with "cannot guess build type". Naming
++        # the build triplet explicitly skips config.guess entirely; config.sub,
++        # which canonicalises what we pass here, already knows aarch64.
++        "--build=aarch64-unknown-linux-gnu",
+         "--with-nagios-user=$$(id -un)",
+         "--with-nagios-group=$$(id -gn)",
+         "--with-perlcache",
+--- bazel/thirdparty/modules/nagios/3.5.1.cmk.2/source.json
++++ bazel/thirdparty/modules/nagios/3.5.1.cmk.2/source.json
+@@ -3,7 +3,7 @@
+   "strip_prefix": "nagios",
+   "url": "https://assets.nagios.com/downloads/nagioscore/releases/nagios-3.5.1.tar.gz",
+   "overlay": {
+-    "BUILD.bazel": "sha256-XaK+Us1uhXeYTysliIdGPsmXO+Zo4cumbEmfKua/o4c=",
++    "BUILD.bazel": "sha256-Brs/mKtZQ8AxvpYsrZqLLafS2AJF5DagWT4Xuij0F+g=",
+     "MODULE.bazel": "sha256-k1jOgDCpvbcT5vZpdHxHTr1MnQRwC09+CO4JmrEE6oU="
+   },
+   "patches": {

@@ -1,0 +1,14 @@
+--- bazel/module/rust/site.MODULE.bazel
++++ bazel/module/rust/site.MODULE.bazel
+@@ -11,7 +11,10 @@
+         "//packages/check-cert:Cargo.toml",
+         "//packages/check-http:Cargo.toml",
+     ],
+-    supported_platform_triples = ["x86_64-unknown-linux-gnu"],
++    supported_platform_triples = [
++        "x86_64-unknown-linux-gnu",
++        "aarch64-unknown-linux-gnu",
++    ],
+ )
+ use_repo(site_crates, "site_crates")
+ site_crates.annotation(

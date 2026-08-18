@@ -1,0 +1,24 @@
+--- bazel/thirdparty/modules/pnp4nagios/0.6.26.cmk.2/overlay/BUILD.bazel
++++ bazel/thirdparty/modules/pnp4nagios/0.6.26.cmk.2/overlay/BUILD.bazel
+@@ -29,6 +29,10 @@
+     args = ["-j4"],
+     configure_in_place = True,
+     configure_options = [
++        # Same as nagios: pnp4nagios 0.6.26 ships a 2008 config.guess that does
++        # not know aarch64. Passing --build skips it; its config.sub is new
++        # enough to canonicalise the triplet.
++        "--build=aarch64-unknown-linux-gnu",
+         "-v",
+         "--bindir=$$INSTALLDIR/bin",
+         "--sysconfdir=$$INSTALLDIR/etc/pnp4nagios",
+--- bazel/thirdparty/modules/pnp4nagios/0.6.26.cmk.2/source.json
++++ bazel/thirdparty/modules/pnp4nagios/0.6.26.cmk.2/source.json
+@@ -3,7 +3,7 @@
+   "strip_prefix": "pnp4nagios-0.6.26",
+   "url": "https://sourceforge.net/projects/pnp4nagios/files/PNP-0.6/pnp4nagios-0.6.26.tar.gz",
+   "overlay": {
+-    "BUILD.bazel": "sha256-hkOvRqww3GNz+6JB59jMyfuhdVtlBmgKEwpjo7yPjso=",
++    "BUILD.bazel": "sha256-VCeB/z2O3STNzwDGpEzkklc3aQJ+06gnHZwxDhgOCzg=",
+     "MODULE.bazel": "sha256-pNAhLVQ3EfpRIx7jJrlZWPds44SKrbQLLHfbJTf23YI="
+   },
+   "patches": {

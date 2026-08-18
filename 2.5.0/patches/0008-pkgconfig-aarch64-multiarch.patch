@@ -1,0 +1,209 @@
+--- omd/packages/Python/BUILD.Python.bazel
++++ omd/packages/Python/BUILD.Python.bazel
+@@ -77,7 +77,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+ 
+--- omd/packages/freetds/BUILD.freetds.bazel
++++ omd/packages/freetds/BUILD.freetds.bazel
+@@ -30,7 +30,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+     lib_source = ":all_srcs",
+--- omd/packages/lcab/BUILD.lcab.bazel
++++ omd/packages/lcab/BUILD.lcab.bazel
+@@ -15,7 +15,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "DESTDIR": "/",
+     },
+--- omd/packages/mod_wsgi/BUILD
++++ omd/packages/mod_wsgi/BUILD
+@@ -19,7 +19,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+     lib_source = "@mod_wsgi//:all_srcs",
+--- omd/packages/monitoring-plugins/BUILD.monitoring-plugins.bazel
++++ omd/packages/monitoring-plugins/BUILD.monitoring-plugins.bazel
+@@ -63,7 +63,7 @@
+     "PKG_CONFIG_PATH": ":".join([
+         "/usr/lib/pkgconfig",
+         "/usr/lib64/pkgconfig",
+-        "/usr/lib/x86_64-linux-gnu/pkgconfig",
++        "/usr/lib/aarch64-linux-gnu/pkgconfig",
+     ]),
+ }
+ 
+--- omd/packages/net-snmp/BUILD.net-snmp.bazel
++++ omd/packages/net-snmp/BUILD.net-snmp.bazel
+@@ -87,7 +87,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "RANLIB": "ranlib",
+         "SETUPTOOLS_TAR": "$(execpath @@//omd/packages/python3-modules:compiled_setuptools.tar)",
+--- omd/packages/stunnel/BUILD.stunnel.bazel
++++ omd/packages/stunnel/BUILD.stunnel.bazel
+@@ -59,7 +59,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+     },
+--- omd/packages/xinetd/BUILD.xinetd.bazel
++++ omd/packages/xinetd/BUILD.xinetd.bazel
+@@ -20,7 +20,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+     },
+--- omd/packages/xmlsec1/BUILD.xmlsec1.bazel
++++ omd/packages/xmlsec1/BUILD.xmlsec1.bazel
+@@ -26,7 +26,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+         "ORIGIN_VAR": "\\\\$$\\$$ORIGIN",
+     },
+--- bazel/thirdparty/modules/libgsf/1.14.44.cmk.4/overlay/BUILD.bazel
++++ bazel/thirdparty/modules/libgsf/1.14.44.cmk.4/overlay/BUILD.bazel
+@@ -62,7 +62,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+     lib_source = ":srcs",
+--- bazel/thirdparty/modules/mod_fcgid/2.3.9.cmk.2/overlay/BUILD.bazel
++++ bazel/thirdparty/modules/mod_fcgid/2.3.9.cmk.2/overlay/BUILD.bazel
+@@ -32,7 +32,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+     lib_source = ":all_srcs",
+--- bazel/thirdparty/modules/msitools/0.94.cmk.8/overlay/BUILD.bazel
++++ bazel/thirdparty/modules/msitools/0.94.cmk.8/overlay/BUILD.bazel
+@@ -37,7 +37,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     } | select(
+         {
+--- bazel/thirdparty/modules/nagios/3.5.1.cmk.2/overlay/BUILD.bazel
++++ bazel/thirdparty/modules/nagios/3.5.1.cmk.2/overlay/BUILD.bazel
+@@ -87,7 +87,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+     lib_source = ":all_srcs",
+--- bazel/thirdparty/modules/pnp4nagios/0.6.26.cmk.2/overlay/BUILD.bazel
++++ bazel/thirdparty/modules/pnp4nagios/0.6.26.cmk.2/overlay/BUILD.bazel
+@@ -51,7 +51,7 @@
+         "PKG_CONFIG_PATH": ":".join([
+             "/usr/lib/pkgconfig",
+             "/usr/lib64/pkgconfig",
+-            "/usr/lib/x86_64-linux-gnu/pkgconfig",
++            "/usr/lib/aarch64-linux-gnu/pkgconfig",
+         ]),
+     },
+     lib_source = ":all_srcs",
+--- bazel/thirdparty/modules/libgsf/1.14.44.cmk.4/source.json
++++ bazel/thirdparty/modules/libgsf/1.14.44.cmk.4/source.json
+@@ -3,7 +3,7 @@
+   "strip_prefix": "libgsf-1.14.44",
+   "url": "https://ftp.osuosl.org/pub/blfs/conglomeration/libgsf/libgsf-1.14.44.tar.xz",
+   "overlay": {
+-    "BUILD.bazel": "sha256-kFkuYNKKudt3UeJSNdT26JfQKTkcwJglS6W0RaeLFDc=",
++    "BUILD.bazel": "sha256-78CRV3vuQqzrbE23GgnTgnB0cj8sq4HyBf8aUOjgEx8=",
+     "MODULE.bazel": "sha256-ir6Jyc83r/4zpa0yDOM+btGJLP3bve71rcjE5fF7Za4="
+   }
+ }
+--- bazel/thirdparty/modules/mod_fcgid/2.3.9.cmk.2/source.json
++++ bazel/thirdparty/modules/mod_fcgid/2.3.9.cmk.2/source.json
+@@ -3,7 +3,7 @@
+   "strip_prefix": "mod_fcgid-2.3.9",
+   "url": "https://downloads.apache.org/httpd/mod_fcgid/mod_fcgid-2.3.9.tar.gz",
+   "overlay": {
+-    "BUILD.bazel": "sha256-yEGyHnHdRD/WXuJMsngB4vD6HTXnl2vGrtKFL62s37Y=",
++    "BUILD.bazel": "sha256-ZUQAtoIXAhEXVJvVo8ErMLmJbJQ9GTb3jW7MmN0Od7M=",
+     "MODULE.bazel": "sha256-+E9m3HE5UiYNz/AXEW7iS/ddKxWEZNyLlFaG7pQ5lJo="
+   },
+   "patches": {
+--- bazel/thirdparty/modules/msitools/0.94.cmk.8/source.json
++++ bazel/thirdparty/modules/msitools/0.94.cmk.8/source.json
+@@ -3,7 +3,7 @@
+   "strip_prefix": "msitools-0.94",
+   "url": "http://ftp.gnome.org/pub/GNOME/sources/msitools/0.94/msitools-0.94.tar.xz",
+   "overlay": {
+-    "BUILD.bazel": "sha256-Dm5WH5GUQV5G6SNVXisdcCmzrwimsEnMuu8q4JBRfIA=",
++    "BUILD.bazel": "sha256-QK5n/WPJOjK9oQ4ndFbf9jEmUAgAF3gQePf4bGevfZ4=",
+     "MODULE.bazel": "sha256-/VI12unjLkqHMxgDTGVGYz/SkiDtY6Mle9I4r2PJ+XA="
+   },
+   "patches": {
+--- bazel/thirdparty/modules/nagios/3.5.1.cmk.2/source.json
++++ bazel/thirdparty/modules/nagios/3.5.1.cmk.2/source.json
+@@ -3,7 +3,7 @@
+   "strip_prefix": "nagios",
+   "url": "https://assets.nagios.com/downloads/nagioscore/releases/nagios-3.5.1.tar.gz",
+   "overlay": {
+-    "BUILD.bazel": "sha256-XJBHZxpWdYW+Rz2ebJx1zOBqwXi95Nwzbegb2dzulO0=",
++    "BUILD.bazel": "sha256-XaK+Us1uhXeYTysliIdGPsmXO+Zo4cumbEmfKua/o4c=",
+     "MODULE.bazel": "sha256-k1jOgDCpvbcT5vZpdHxHTr1MnQRwC09+CO4JmrEE6oU="
+   },
+   "patches": {
+--- bazel/thirdparty/modules/pnp4nagios/0.6.26.cmk.2/source.json
++++ bazel/thirdparty/modules/pnp4nagios/0.6.26.cmk.2/source.json
+@@ -3,7 +3,7 @@
+   "strip_prefix": "pnp4nagios-0.6.26",
+   "url": "https://sourceforge.net/projects/pnp4nagios/files/PNP-0.6/pnp4nagios-0.6.26.tar.gz",
+   "overlay": {
+-    "BUILD.bazel": "sha256-OV9Qw6Z6yG7MUzZisAIb7p93wG+SLmG6akMNBh+Anrs=",
++    "BUILD.bazel": "sha256-hkOvRqww3GNz+6JB59jMyfuhdVtlBmgKEwpjo7yPjso=",
+     "MODULE.bazel": "sha256-pNAhLVQ3EfpRIx7jJrlZWPds44SKrbQLLHfbJTf23YI="
+   },
+   "patches": {

@@ -49,9 +49,13 @@ jobs:
           # A glob, not a constructed filename: the distro is encoded in the
           # .deb's name and version.sh reads it back out of there. Building the
           # name here would mean keeping a second copy of that mapping.
+          # Both edition names: check-mk-raw-* up to 2.4, check-mk-community-*
+          # from 2.5 on.
           gh release download "$VERSION" \
             --pattern 'check-mk-raw-*_arm64.deb' \
             --pattern 'check-mk-raw-*_arm64.deb.sha256' \
+            --pattern 'check-mk-community-*_arm64.deb' \
+            --pattern 'check-mk-community-*_arm64.deb.sha256' \
             --dir docker/
           # The reason the .sha256 is published beside the .deb. A release asset
           # is the one build output that travels, so check it before trusting it.

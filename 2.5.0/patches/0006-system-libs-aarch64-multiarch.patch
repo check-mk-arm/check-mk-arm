@@ -1,0 +1,61 @@
+--- bazel/thirdparty/modules/glib/2.0.cmk.1/src/BUILD.glib.bazel
++++ bazel/thirdparty/modules/glib/2.0.cmk.1/src/BUILD.glib.bazel
+@@ -3,14 +3,14 @@
+     hdrs = select(
+         {
+             "@cmk//filesystem_layout:fhs": ["lib64/glib-2.0/include/glibconfig.h"],
+-            "@cmk//filesystem_layout:lsb": ["lib/x86_64-linux-gnu/glib-2.0/include/glibconfig.h"],
++            "@cmk//filesystem_layout:lsb": ["lib/aarch64-linux-gnu/glib-2.0/include/glibconfig.h"],
+         },
+         no_match_error = "Please build with lsb or fhs filesystem layout",
+     ),
+     includes = select(
+         {
+             "@cmk//filesystem_layout:fhs": ["lib64/glib-2.0/include"],
+-            "@cmk//filesystem_layout:lsb": ["lib/x86_64-linux-gnu/glib-2.0/include"],
++            "@cmk//filesystem_layout:lsb": ["lib/aarch64-linux-gnu/glib-2.0/include"],
+         },
+         no_match_error = "Please build with lsb or fhs filesystem layout",
+     ),
+@@ -22,7 +22,7 @@
+     shared_library = select(
+         {
+             "@cmk//filesystem_layout:fhs": "lib64/libglib-2.0.so",
+-            "@cmk//filesystem_layout:lsb": "lib/x86_64-linux-gnu/libglib-2.0.so",
++            "@cmk//filesystem_layout:lsb": "lib/aarch64-linux-gnu/libglib-2.0.so",
+         },
+         no_match_error = "Please build with lsb or fhs filesystem layout",
+     ),
+--- bazel/thirdparty/modules/libxml2/2.0.cmk.1/src/BUILD.libxml2.bazel
++++ bazel/thirdparty/modules/libxml2/2.0.cmk.1/src/BUILD.libxml2.bazel
+@@ -3,7 +3,7 @@
+     shared_library = select(
+         {
+             "@cmk//filesystem_layout:fhs": "lib64/libxml2.so",
+-            "@cmk//filesystem_layout:lsb": "lib/x86_64-linux-gnu/libxml2.so",
++            "@cmk//filesystem_layout:lsb": "lib/aarch64-linux-gnu/libxml2.so",
+         },
+         no_match_error = "Please build with lsb or fhs filesystem layout",
+     ),
+--- bazel/thirdparty/modules/rrdtool/1.7.2.cmk.1/overlay/BUILD.bazel
++++ bazel/thirdparty/modules/rrdtool/1.7.2.cmk.1/overlay/BUILD.bazel
+@@ -71,7 +71,7 @@
+             "-I/usr/include/uuid",
+             "-I/usr/lib64/glib-2.0",
+             "-I/usr/lib64/glib-2.0/include",
+-            "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include",
++            "-I/usr/lib/aarch64-linux-gnu/glib-2.0/include",
+         ]) + "'",
+     ],
+     copts = [
+--- bazel/thirdparty/modules/rrdtool/1.7.2.cmk.1/source.json
++++ bazel/thirdparty/modules/rrdtool/1.7.2.cmk.1/source.json
+@@ -9,7 +9,7 @@
+   },
+   "patch_strip": 1,
+   "overlay": {
+-    "BUILD.bazel": "sha256-GV/IX1YvrlQv7mqxtC1EuAbS0K31Q7B2ADdBfVWuIHw=",
++    "BUILD.bazel": "sha256-hphuIAeka2q40Wcdmw2hyjW18Mp3n+plUcQXs+W9VaM=",
+     "MODULE.bazel": "sha256-CkM/Is3xh1GMUjPIY67vlGnEX29Kd/3OuUKXaq+Zsvc="
+   }
+ }

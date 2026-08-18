@@ -1,0 +1,101 @@
+--- bazel/module/py.MODULE.bazel
++++ bazel/module/py.MODULE.bazel
+@@ -7,6 +7,23 @@
+         "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.13.14+20260610-x86_64-unknown-linux-gnu-install_only.tar.gz",
+     ],
+ )
++
++# rules_python 1.4.1 does not know any of the CPython patch levels pinned here;
++# the x86_64 overrides are the only reason they resolve at all, so on aarch64
++# there is no interpreter to register and the pip extension fails with
++# "Unable to find interpreter for pip hub ... Make sure a corresponding
++# python.toolchain() call exists". Each block below adds the aarch64 asset from
++# the same python-build-standalone release. 3.13 is the interpreter that ends up
++# driving the build; the rest exist only to test the agent plugins against older
++# Pythons, but the extension evaluates them regardless of the target being built.
++python.single_version_platform_override(
++    platform = "aarch64-unknown-linux-gnu",
++    python_version = "3.13.14",
++    sha256 = "fe5b366ecf26fe565113b195a03ea18d7030f2dab691c0bed41cf19318100be2",
++    urls = [
++        "https://github.com/astral-sh/python-build-standalone/releases/download/20260610/cpython-3.13.14+20260610-aarch64-unknown-linux-gnu-install_only.tar.gz",
++    ],
++)
+ python.defaults(python_version = "3.13")
+ python.toolchain(
+     configure_coverage_tool = True,
+@@ -56,6 +73,14 @@
+         "https://github.com/astral-sh/python-build-standalone/releases/download/20241002/cpython-3.8.20+20241002-x86_64-unknown-linux-gnu-install_only.tar.gz",
+     ],
+ )
++python.single_version_platform_override(
++    platform = "aarch64-unknown-linux-gnu",
++    python_version = "3.8.20",
++    sha256 = "9d8798f9e79e0fc0f36fcb95bfa28a1023407d51a8ea5944b4da711f1f75f1ed",
++    urls = [
++        "https://github.com/astral-sh/python-build-standalone/releases/download/20241002/cpython-3.8.20+20241002-aarch64-unknown-linux-gnu-install_only.tar.gz",
++    ],
++)
+ python.toolchain(
+     python_version = "3.8",
+ )
+@@ -67,6 +92,14 @@
+         "https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25+20251031-x86_64-unknown-linux-gnu-install_only.tar.gz",
+     ],
+ )
++python.single_version_platform_override(
++    platform = "aarch64-unknown-linux-gnu",
++    python_version = "3.9.25",
++    sha256 = "6112d46355857680b81849764a6cf9f38cc4cd0d1cf29d432bc12fe5aeedf9d0",
++    urls = [
++        "https://github.com/astral-sh/python-build-standalone/releases/download/20251031/cpython-3.9.25+20251031-aarch64-unknown-linux-gnu-install_only.tar.gz",
++    ],
++)
+ python.toolchain(
+     python_version = "3.9",
+ )
+@@ -78,6 +111,14 @@
+         "https://github.com/astral-sh/python-build-standalone/releases/download/20251120/cpython-3.10.19+20251120-x86_64-unknown-linux-gnu-install_only.tar.gz",
+     ],
+ )
++python.single_version_platform_override(
++    platform = "aarch64-unknown-linux-gnu",
++    python_version = "3.10.19",
++    sha256 = "5ba45150c1a5f318f49390015530e069ba9d1aea0f9f4b19ad2004b5e18baf6b",
++    urls = [
++        "https://github.com/astral-sh/python-build-standalone/releases/download/20251120/cpython-3.10.19+20251120-aarch64-unknown-linux-gnu-install_only.tar.gz",
++    ],
++)
+ python.toolchain(
+     python_version = "3.10",
+ )
+@@ -89,6 +130,14 @@
+         "https://github.com/astral-sh/python-build-standalone/releases/download/20251120/cpython-3.11.14+20251120-x86_64-unknown-linux-gnu-install_only.tar.gz",
+     ],
+ )
++python.single_version_platform_override(
++    platform = "aarch64-unknown-linux-gnu",
++    python_version = "3.11.14",
++    sha256 = "750c0a34ee66e27db6c3bd67aab469213b09168efa8c92754ec472113f438bf5",
++    urls = [
++        "https://github.com/astral-sh/python-build-standalone/releases/download/20251120/cpython-3.11.14+20251120-aarch64-unknown-linux-gnu-install_only.tar.gz",
++    ],
++)
+ python.toolchain(
+     python_version = "3.11",
+ )
+@@ -100,6 +149,14 @@
+         "https://github.com/astral-sh/python-build-standalone/releases/download/20251120/cpython-3.12.12+20251120-x86_64-unknown-linux-gnu-install_only.tar.gz",
+     ],
+ )
++python.single_version_platform_override(
++    platform = "aarch64-unknown-linux-gnu",
++    python_version = "3.12.12",
++    sha256 = "16e50e3facc006e918cf83604a0c9bb5d24e16d4164cd001e94d268f4f62259e",
++    urls = [
++        "https://github.com/astral-sh/python-build-standalone/releases/download/20251120/cpython-3.12.12+20251120-aarch64-unknown-linux-gnu-install_only.tar.gz",
++    ],
++)
+ python.toolchain(
+     python_version = "3.12",
+ )

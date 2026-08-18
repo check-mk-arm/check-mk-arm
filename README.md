@@ -1,9 +1,10 @@
 # check-mk-arm
 
-Builds **Checkmk Raw** `.deb` packages for **arm64 / aarch64**.
+Builds **Checkmk Community** (formerly Raw) `.deb` packages for **arm64 /
+aarch64**.
 
 Checkmk publishes no ARM server packages for any version — every
-`check-mk-raw-*.deb` on `download.checkmk.com` is `amd64`, and every
+`check-mk-{raw,community}-*.deb` on `download.checkmk.com` is `amd64`, and every
 `checkmk/check-mk-raw` Docker Hub tag is a single `linux/amd64` manifest.
 Checkmk's position is that ARM server builds are not planned; only the *agent
 controller* has gained aarch64 support (werk #19275). So the package has to be
@@ -18,13 +19,25 @@ Both stopped at Checkmk 2.2.
 | `2.2.0/`  | 2.2.0p47| `debian:bookworm`     | inherited from upstream, minimally fixed to build in CI |
 | `2.3.0/`  | 2.3.0p49| `debian:bookworm-slim`| rewritten                               |
 | `2.4.0/`  | 2.4.0p35| `debian:trixie-slim`  | ported from `2.3.0/`                    |
+| `2.5.0/`  | 2.5.0p11| `debian:trixie-slim`  | re-derived — 2.5 builds the package with Bazel |
 
-The distro is not a preference: `omd/omd.make` derives `DISTRO_CODE` from
-`/etc/debian_version`, so the base image alone decides the `_0.<code>_arm64.deb`
-suffix — and `omd/distros/DEBIAN_13.mk`, the file that sets `DISTRO_CODE = trixie`,
-exists only from the 2.4.0 branch on. 2.3 physically cannot produce a trixie
-package, and the runtime image's base distro has to match the package's
-(bookworm pulls `libperl5.36`, trixie `libperl5.40`).
+The distro is not a preference. Up to 2.4 `omd/omd.make` derived `DISTRO_CODE`
+from `/etc/debian_version`, so the base image alone decided the
+`_0.<code>_arm64.deb` suffix — and `omd/distros/DEBIAN_13.mk`, the file that sets
+`DISTRO_CODE = trixie`, exists only from the 2.4.0 branch on, so 2.3 physically
+cannot produce a trixie package. 2.5 takes it from the `--cmk_distro` Bazel flag
+instead (`bazelrc.local` sets `debian-13`), but the constraint is the same one in
+a different place: the flag selects `omd/distros/DEBIAN_13.mk`, whose dependency
+list has to match the distro the build image actually is. Either way the runtime
+image's base distro has to match the package's (bookworm pulls `libperl5.36`,
+trixie `libperl5.40`).
+
+**Checkmk renamed its editions in 2.5**: Raw became Community, Enterprise became
+Pro, Cloud became Ultimate. That changes the source tarball's name (and drops the
+`.cre` infix), the package name, and the `<version>.<edition>` directory the
+package installs into — so from 2.5 on the artifacts are
+`check-mk-community-2.5.0p11_0.trixie_arm64.deb` and
+`/opt/omd/versions/2.5.0p11.community`.
 
 ## AI usage
 
@@ -36,12 +49,13 @@ Creating the packages and builds was assisted by AI. Code / changes were manuall
 [`docker/`](docker/) wraps the package into a runnable image, published to GHCR:
 
 ```
-docker pull ghcr.io/<owner>/checkmk-community-arm:2.3.0p49
+docker pull ghcr.io/<owner>/checkmk-community-arm:2.5.0p11
 ```
 
 [`.github/workflows/docker-image.yml`](.github/workflows/docker-image.yml) is a
 `workflow_call` workflow that both build workflows invoke, so 2.2 and 2.3+ share
-one image recipe. It runs only on a release run, because it fetches the package
+one image recipe. It globs for both package names, since 2.5 renamed the Raw
+edition to Community (`check-mk-community-*_arm64.deb`). It runs only on a release run, because it fetches the package
 **from the GitHub release** rather than from the build job's artifact — that
 exercises the same path a user takes, so a release whose assets are missing or
 corrupt fails there rather than in somebody's `docker build`. The `.sha256` is
@@ -108,25 +122,35 @@ The finished package lands in `/data/checkmk/work/<version>/debs/` together with
 
 ### How it works
 
-1. **fetch-src** — download the official `check-mk-raw-<ver>.cre.tar.gz`.
-2. **fetch-donor-deb** — download the amd64 *Cloud* edition package. The Windows
-   agent binaries cannot be built on Linux/ARM, so they are lifted from there;
-   this is what the upstream ARM recipe has always done.
-3. **seed-distdir** — repackage snap7 from its SourceForge `.7z` (upstream ships
-   no `.tar.gz` since 1.4.2 and Checkmk's own mirror is unreachable from
-   outside), adding an aarch64 build profile, and hand it to Bazel via
-   `--distdir`.
+1. **fetch-src** — download the official source tarball
+   (`check-mk-raw-<ver>.cre.tar.gz` up to 2.4,
+   `check-mk-community-<ver>.tar.gz` from 2.5).
+2. **fetch-donor-deb** — download the amd64 *Cloud* (2.5: *Ultimate*) edition
+   package. The Windows agent binaries cannot be built on Linux/ARM, so they are
+   lifted from there; this is what the upstream ARM recipe has always done. From
+   2.5 the Linux agent-controller binaries come from there too — they are static
+   musl payloads for monitored hosts and upstream builds them with a musl
+   toolchain that only runs on an x86-64 exec platform.
+3. **seed-distdir** / **seed-perl-modules** — put the archives whose upstream
+   URLs are dead or unreachable into Bazel's `--distdir`, where they are matched
+   by name and sha256 before any download is attempted. Up to 2.4 this also
+   repackaged snap7 from its SourceForge `.7z`; 2.5 has a repository rule that
+   does that itself.
 4. **patch** — apply `<minor>/patches/` in `series` order. Each patch is dry-run
    immediately before being applied and the first failure aborts the build.
 5. **venv** and **frontend** (2.4 only) — have Bazel create the build venv with
    `uv`, and build `packages/cmk-frontend{,-vue}/dist` with npm. Both are inputs
-   `make deb` needs and neither is in the release tarball any more.
-6. **build-deb** — `debuild` in `omd/`, which compiles everything and produces
-   the package.
-7. **collect** — copy the package into `debs/` beside a `.sha256`.
+   `make deb` needs and neither is in the release tarball any more. 2.5 builds
+   both inside Bazel, so the stages are gone.
+6. **repin-crates** (2.5 only) — regenerate `site.Cargo.lock.bazel` after patch
+   `0013` adds aarch64 to `@site_crates`' platform list.
+7. **build-deb** — up to 2.4, `debuild` in `omd/`. 2.5 moved the whole packaging
+   into Bazel, so it is `bazel build //omd:deb_community`.
+8. **collect** — copy the package into `debs/` beside a `.sha256`.
 
-See [`2.3.0/patches/README.md`](2.3.0/patches/README.md) and
-[`2.4.0/patches/README.md`](2.4.0/patches/README.md) for what each patch does and
+See [`2.3.0/patches/README.md`](2.3.0/patches/README.md),
+[`2.4.0/patches/README.md`](2.4.0/patches/README.md) and
+[`2.5.0/patches/README.md`](2.5.0/patches/README.md) for what each patch does and
 when it can be dropped. Patches numbered `0001-0099` are genuine architecture
 fixes and are suitable to offer upstream to Checkmk.
 
@@ -149,15 +173,14 @@ and no re-download.
 Stages are marked in `state/`, so a build that dies after five hours resumes
 where it stopped rather than starting over.
 
-
 ## Continuous integration
 
 [`.github/workflows/build-deb.yml`](.github/workflows/build-deb.yml) runs the
 same `./run.sh` on GitHub's free `ubuntu-24.04-arm` runner (4 vCPU, 16 GB,
 ~46 GB free disk, 6 h job cap). 2.3 needs 4 cores, 5.3 GiB and ~25 GB, which fits
-with roughly 2× margin and no caching. 2.4 is the tighter one: ~27 GB (a 17 GB
-Bazel cache, a 4.9 GB source tree and a 5 GB builder image) against the ~46 GB the
-`Reclaim runner disk` step leaves, and every CI run is cold, so keep an eye on the
+with roughly 2× margin and no caching. 2.4 is tighter: ~27 GB (a 17 GB Bazel
+cache, a 4.9 GB source tree and a 5 GB builder image) against the ~46 GB the
+`Reclaim runner disk` step leaves. Every CI run is cold, so keep an eye on the
 350-minute step timeout when a patch level changes enough to rebuild `erlang` and
 `python3-modules` from scratch.
 
@@ -188,8 +211,11 @@ runs locally as well:
   per-minor, since the payload differs between releases: 2.3 ships prebuilt
   x86 `cmk-agent-ctl` and `mk-sql` in the source tarball, while 2.4 no longer
   does, so those two come out aarch64 there and the prebuilt robotmk binaries
-  take their place on the list. A minor without a curated list is held only to
-  the `agents/`-path rule and has what it found recorded in the log;
+  take their place on the list. 2.5 has nine, having added `mk-oracle` and
+  robotmk's `micromamba`, and putting `cmk-agent-ctl` and `mk-sql` back because
+  they are lifted from the donor rather than built. A minor without a curated
+  list is held only to the `agents/`-path rule and has what it found recorded in
+  the log;
 - **Windows agents** — `check_mk_agent.msi` is present and non-empty. The payload
   is lifted from the donor package, so a donor that failed to download would
   otherwise leave a package that is complete in every other respect, installs

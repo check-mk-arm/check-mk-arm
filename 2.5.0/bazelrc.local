@@ -1,0 +1,64 @@
+# Our Bazel overrides for the arm64 build. build.sh installs this file as
+# /etc/ci.bazelrc, which upstream's .bazelrc try-imports near the end — so
+# everything here beats what .bazelrc sets above it. Bazel applies rc options in
+# order and the last one wins.
+#
+# NOTE: 2.5 moved `try-import %workspace%/user.bazelrc` *after* the ci.bazelrc
+# import, so user.bazelrc is now the only file that could override this one. The
+# release tarball ships no user.bazelrc and build.sh does not create one.
+#
+# NOTE: upstream's own build images put `common --config=ci` here. We must not.
+# --config=ci points the C++ toolchain at the x86-64 /opt/gcc-14.2.0 tree
+# (--//bazel/toolchains/cc/gcc/local:gcc_path=opt) and turns on remote-cache
+# uploads.
+
+# Patches 0007 and 0010 edit MODULE.bazel (an aarch64 CPython and the arm64
+# jaeger asset), which invalidates MODULE.bazel.lock — and .bazelrc sets
+# --lockfile_mode=error.
+common --lockfile_mode=update
+
+# Which distro the package is built for. .bazelrc defaults this to ubuntu-24.04
+# (upstream's own base image); it decides the `_0.trixie_` in the package name,
+# the dependency list taken from omd/distros/DEBIAN_13.mk, and — through
+# @cmk//filesystem_layout — the LSB layout every omd package selects on.
+common --@cmk//distro=debian-13
+
+# The aarch64 C++ toolchain added by patch 0002. --extra_toolchains has
+# precedence over the x86-64 one MODULE.bazel registers *and* over Bazel's
+# auto-detected fallback, which would otherwise be used silently — without
+# -std=c++20, which livestatus and neb need.
+build --extra_toolchains=//bazel/toolchains/cc/gcc/local:linux_aarch64
+
+# Upstream: cpu=HOST_CPUS-2, memory=HOST_RAM*.5. Pinned instead of derived so
+# the 4-core build box and the 4-vCPU CI runner behave identically, and so the
+# C++ links do not race Bazel's JVM into the OOM killer (no swap on either).
+common --local_resources=cpu=3
+common --local_resources=memory=11000
+common --jobs=3
+
+# /root is bind-mounted, so the disk cache survives container recreation and a
+# `bazel clean`. .bazelrc puts it at ~/.cache/bazel_disk_cache with a 100 GB
+# ceiling, which neither the build box nor a CI runner has room for. Both the
+# plain and the :linux form are set because --enable_platform_specific_config
+# expands `common:linux` from .bazelrc as well, and only the later definition
+# of the two wins.
+common --disk_cache=/root/.cache/bazel-disk
+common:linux --disk_cache=/root/.cache/bazel-disk
+common --experimental_disk_cache_gc_max_size=12G
+common:linux --experimental_disk_cache_gc_max_size=12G
+
+# The distdir holds the archives whose upstream URLs are dead or unreachable
+# (see build.sh: EXTRA_SEEDS and the ~85 CPAN tarballs).
+common --distdir=/opt/build-mk/distdir
+
+# bazel_downloader.cfg rewrites github.com, files.pythonhosted.org and friends
+# through bazel-registry.lan.checkmk.net first. run.sh points that name at
+# 127.0.0.1 so the probe fails instantly instead of hanging; pointing the
+# downloader at an empty config skips it altogether. (2.5 renamed the flag from
+# --experimental_downloader_config.)
+common --downloader_config=/etc/bazel-downloader-none.cfg
+
+# Same reasoning for the Go module proxy, whose first entry in .bazelrc is that
+# same unreachable host.
+common --repo_env=GOPROXY=https://proxy.golang.org,direct
+common --repo_env=GOSUMDB=sum.golang.org

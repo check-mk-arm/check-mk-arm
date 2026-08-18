@@ -20,9 +20,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Checkmk version, e.g. 2.4.0p35"
+        description: "Checkmk version, e.g. 2.5.0p11"
         required: true
-        default: "2.4.0p35"
+        default: "2.5.0p11"
       release:
         description: "Release the package if the build passes"
         type: choice
@@ -52,7 +52,7 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
     env:
       # Used when nothing else supplies a version, i.e. a push to ci/**.
-      DEFAULT_VERSION: "2.4.0p35"
+      DEFAULT_VERSION: "2.5.0p11"
       # The runner has 16 GB against the build box's 23 GB. Peak measured RSS is
       # 5.3 GiB, so this is headroom, not a budget.
       MEMORY: 13g
@@ -77,6 +77,14 @@ jobs:
           # A job output as well, because $GITHUB_ENV does not cross job
           # boundaries and the docker-image job needs the resolved version.
           echo "version=$v" >> "$GITHUB_OUTPUT"
+          # 2.5 renamed the Raw edition to Community, and the package name
+          # follows the edition. Only used to name the artifact; the .deb itself
+          # is found by glob everywhere else.
+          case "${v%%p*}" in
+            2.2.0|2.3.0|2.4.0) edition=raw ;;
+            *) edition=community ;;
+          esac
+          echo "CMK_EDITION=$edition" >> "$GITHUB_ENV"
           # The runner has no /data; keep the whole build under the runner's own
           # scratch space, which is on the large root filesystem.
           echo "CMK_DATA=$RUNNER_TEMP/cmk" >> "$GITHUB_ENV"
@@ -121,7 +129,7 @@ jobs:
       - name: Upload the package as an artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: check-mk-raw-${{ env.CMK_VERSION }}_arm64
+          name: check-mk-${{ env.CMK_EDITION }}-${{ env.CMK_VERSION }}_arm64
           path: ${{ env.CMK_DATA }}/work/${{ env.CMK_VERSION }}/debs/*
           if-no-files-found: error
 

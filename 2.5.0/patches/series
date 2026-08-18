@@ -1,0 +1,18 @@
+# Applied in this order by lib/build-common.sh::apply_patches.
+# 0001-0099  aarch64 architecture fixes  (offerable upstream to Checkmk)
+# 0100-0199  reachability of downloads   (Checkmk-internal mirrors)
+# 0300-0399  building from the release tarball rather than a git checkout
+0001-python-sysconfigdata-aarch64.patch
+0002-cc-toolchain-aarch64.patch
+0003-net-snmp-perl-archlib-aarch64.patch
+0004-snap7-aarch64-build-profile.patch
+0005-perl-modules-tar-no-same-owner.patch
+0006-system-libs-aarch64-multiarch.patch
+0007-python-interpreter-aarch64.patch
+0008-pkgconfig-aarch64-multiarch.patch
+0009-deb-architecture-arm64.patch
+0010-jaeger-linux-arm64.patch
+0011-nagios-build-triplet.patch
+0012-pnp4nagios-build-triplet.patch
+0013-rust-crates-aarch64-platform.patch
+0300-workspace-status-from-tarball.patch

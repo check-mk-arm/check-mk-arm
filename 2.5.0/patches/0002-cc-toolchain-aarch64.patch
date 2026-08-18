@@ -1,0 +1,112 @@
+--- bazel/toolchains/cc/gcc/local/BUILD
++++ bazel/toolchains/cc/gcc/local/BUILD
+@@ -130,6 +130,109 @@
+     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+ )
+ 
++# --- aarch64 -----------------------------------------------------------------
++# The same non-hermetic local toolchain for arm64 hosts. Everything above is
++# x86_64-only -- cpu = "k8", the multiarch include directories and the
++# exec/target constraints -- so on aarch64 toolchain resolution falls through to
++# Bazel's auto-detected fallback toolchain, which compiles without
++# cxx_flags = ["-std=c++20"] and therefore fails to build livestatus and neb.
++#
++# Registered via --extra_toolchains (see bazelrc.local), not register_toolchains,
++# so MODULE.bazel and its lock file are untouched.
++
++unix_cc_toolchain_config(
++    name = "linux_aarch64_config",
++    abi_libc_version = "local",
++    abi_version = "local",
++    compile_flags = [
++        "-fstack-protector",
++        "-Wall",
++        "-Wunused-but-set-parameter",
++        "-Wno-free-nonheap-object",
++        "-fno-omit-frame-pointer",
++    ],
++    compiler = "gcc",
++    cpu = "aarch64",
++    cxx_builtin_include_directories = [
++        # local
++        "/usr/lib/gcc/aarch64-linux-gnu/14/include",
++        "/usr/lib/gcc/aarch64-linux-gnu/14/include-fixed",
++        # generic
++        "/include",
++        "/usr/include",
++        "/usr/lib64/",
++    ],
++    cxx_flags = ["-std=c++20"],
++    dbg_compile_flags = ["-g"],
++    host_system_name = "local",
++    link_flags = [
++        "-Wl,-no-as-needed",
++        "-Wl,-z,relro,-z,now",
++        "-pass-exit-codes",
++    ],
++    link_libs = [
++        "-lstdc++",
++        "-lm",
++    ],
++    opt_compile_flags = [
++        "-g0",
++        "-O2",
++        "-D_FORTIFY_SOURCE=1",
++        "-DNDEBUG",
++        "-ffunction-sections",
++        "-fdata-sections",
++    ],
++    opt_link_flags = ["-Wl,--gc-sections"],
++    target_libc = "local",
++    target_system_name = "local",
++    tool_paths = {
++        "ar": "/usr/bin/gcc-ar-14",
++        "cpp": "/usr/bin/cpp-14",
++        "gcc": "/usr/bin/gcc-14",
++        "ld": "/usr/bin/ld",
++        "nm": "/usr/bin/gcc-nm-14",
++        "objdump": "/usr/bin/objdump",
++        "strip": "/usr/bin/strip",
++        "objcopy": "/usr/bin/objcopy",
++    },
++    toolchain_identifier = "linux_aarch64",
++    unfiltered_compile_flags = [
++        "-Wno-builtin-macro-redefined",
++        "-D__DATE__=\"redacted\"",
++        "-D__TIMESTAMP__=\"redacted\"",
++        "-D__TIME__=\"redacted\"",
++        "-fno-canonical-system-headers",
++    ],
++)
++
++cc_toolchain(
++    name = "linux_aarch64_toolchain",
++    all_files = ":empty",
++    compiler_files = ":empty",
++    dwp_files = ":empty",
++    linker_files = ":empty",
++    objcopy_files = ":empty",
++    static_runtime_lib = ":empty",
++    strip_files = ":empty",
++    supports_param_files = 0,
++    toolchain_config = ":linux_aarch64_config",
++    toolchain_identifier = "linux_aarch64",
++)
++
++toolchain(
++    name = "linux_aarch64",
++    exec_compatible_with = [
++        "@platforms//cpu:aarch64",
++        "@platforms//os:linux",
++    ],
++    target_compatible_with = [
++        "@platforms//cpu:aarch64",
++        "@platforms//os:linux",
++    ],
++    toolchain = ":linux_aarch64_toolchain",
++    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
++)
++
+ # Unified targets that select the appropriate cpp libs based on gcc_path flag
+ # Repositories are defined in //bazel/module/gcc.MODULE.bazel
+ 
