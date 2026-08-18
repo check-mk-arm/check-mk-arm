@@ -74,7 +74,9 @@ jobs:
       IMAGE: cmk-arm-build:2.2.0-bookworm
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Resolve the build environment
         id: resolve
@@ -174,7 +176,7 @@ jobs:
         run: ./ci/verify-deb.sh "$DEBS"
 
       - name: Upload the package as an artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: check-mk-raw-${{ env.CMK_VERSION }}_arm64
           path: ${{ env.DEBS }}/*
