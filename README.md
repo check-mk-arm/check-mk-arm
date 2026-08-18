@@ -26,15 +26,63 @@ exists only from the 2.4.0 branch on. 2.3 physically cannot produce a trixie
 package, and the runtime image's base distro has to match the package's
 (bookworm pulls `libperl5.36`, trixie `libperl5.40`).
 
-Checkmk 2.5+ is out of scope: its Bazel `pkg_deb` hardcodes
-`architecture = "amd64"`, there is no `aarch64-linux-gnu` Bazel platform, and the
-hermetic GCC/Rust toolchains are x86_64-only.
+## AI usage
+
+Creating the packages and builds was assisted by AI. Code / changes were manually reviewed, and the output was tested by a human before creating releases.
+
+
+## Consuming the result
+
+[`docker/`](docker/) wraps the package into a runnable image, published to GHCR:
+
+```
+docker pull ghcr.io/<owner>/checkmk-community-arm:2.3.0p49
+```
+
+[`.github/workflows/docker-image.yml`](.github/workflows/docker-image.yml) is a
+`workflow_call` workflow that both build workflows invoke, so 2.2 and 2.3+ share
+one image recipe. It runs only on a release run, because it fetches the package
+**from the GitHub release** rather than from the build job's artifact — that
+exercises the same path a user takes, so a release whose assets are missing or
+corrupt fails there rather than in somebody's `docker build`. The `.sha256` is
+checked before the package is used. Draft releases work too; the download goes
+through `gh`, whose token can see them.
+
+`docker/version.sh` is the single source of truth for the version, the distro
+and the tag set, all derived from the `.deb`'s own filename — which is why the
+workflow downloads the asset by glob rather than by a name it builds itself.
+Passing the release tag in as `GIT_TAG` makes it refuse to publish a package
+whose version disagrees with the release being built.
+
+Each build publishes two tags, the patch level and its series (`2.3.0p49` and
+`2.3.0`). No `latest`: only the newest supported line could honestly claim it,
+and this also builds end-of-life 2.2 and, on demand, older patch levels. Note
+that the series tag has the same hazard in miniature — rebuilding an older patch
+level moves `2.3.0` backwards.
+
+The base distro must match the one the package was built for, since the
+dependencies are distro-specific (bookworm pulls `libperl5.36`, trixie
+`libperl5.40`); it is the `DISTRO_CODE` build arg, read out of the `.deb` name.
+
+`docker/` comes from
+[`checkmk_build`](https://github.com/check-mk-arm/checkmk_build) and is a
+verbatim copy of it — that repository's GitLab ancestry is no longer tracked.
+Changes belong here now.
+
+## Caveats
+
+- Community-built and **not supported or endorsed by Checkmk**. Do not report
+  problems with these packages to Checkmk.
+- The bundled **Windows agent binaries are x86-64** by construction. They are
+  shipped for deployment to Windows hosts and never run on the server.
+- **`navicli`** (EMC storage) is dropped — prebuilt x86-only binaries with no
+  aarch64 equivalent.
+
 
 ## Building
 
-Requires an **arm64 host with Docker**. Nothing is installed on the host; the
-whole toolchain lives in the build image. Budget several hours for a cold build
-and tens of GB of disk.
+Requires an **arm64 host with Docker**. Ideally runs in github CI on ARM runners.
+Nothing is installed on the host; the whole toolchain lives in the build image. Budget several hours for a cold build and tens of GB of disk.
 
 ```bash
 ./run.sh image      # build the builder image
@@ -56,8 +104,32 @@ CMK_VERSION=2.3.0p49 ./run.sh build
 Run `./run.sh watch` in a second terminal: it samples disk and memory every two
 minutes and stops the build before either filesystem fills.
 
-The finished package lands in `/data/checkmk/work/<version>/debs/` together with
-a `.sha256`.
+The finished package lands in `/data/checkmk/work/<version>/debs/` together with a `.sha256`.
+
+### How it works
+
+1. **fetch-src** — download the official `check-mk-raw-<ver>.cre.tar.gz`.
+2. **fetch-donor-deb** — download the amd64 *Cloud* edition package. The Windows
+   agent binaries cannot be built on Linux/ARM, so they are lifted from there;
+   this is what the upstream ARM recipe has always done.
+3. **seed-distdir** — repackage snap7 from its SourceForge `.7z` (upstream ships
+   no `.tar.gz` since 1.4.2 and Checkmk's own mirror is unreachable from
+   outside), adding an aarch64 build profile, and hand it to Bazel via
+   `--distdir`.
+4. **patch** — apply `<minor>/patches/` in `series` order. Each patch is dry-run
+   immediately before being applied and the first failure aborts the build.
+5. **venv** and **frontend** (2.4 only) — have Bazel create the build venv with
+   `uv`, and build `packages/cmk-frontend{,-vue}/dist` with npm. Both are inputs
+   `make deb` needs and neither is in the release tarball any more.
+6. **build-deb** — `debuild` in `omd/`, which compiles everything and produces
+   the package.
+7. **collect** — copy the package into `debs/` beside a `.sha256`.
+
+See [`2.3.0/patches/README.md`](2.3.0/patches/README.md) and
+[`2.4.0/patches/README.md`](2.4.0/patches/README.md) for what each patch does and
+when it can be dropped. Patches numbered `0001-0099` are genuine architecture
+fixes and are suitable to offer upstream to Checkmk.
+
 
 ### Iterating
 
@@ -77,11 +149,6 @@ and no re-download.
 Stages are marked in `state/`, so a build that dies after five hours resumes
 where it stopped rather than starting over.
 
-### Where the build lives
-
-Everything is written under `/data/checkmk`. Set `CMK_DATA` to move it — that is
-all CI needs to run the same build on a machine with no `/data`. `MEMORY` and
-`CPUS` cap the container; the defaults suit a 23 GB host.
 
 ## Continuous integration
 
@@ -101,16 +168,12 @@ Bazel cache, a 4.9 GB source tree and a 5 GB builder image) against the ~46 GB t
 
 The build logs are uploaded as an artifact too, on success or failure.
 
-**Releases are made by the build, not the other way round.** Run the workflow by
+**Releases are made by the build.** Run the workflow by
 hand, give it a version, and set `release` to `draft` or `publish`: a build that
 passes `ci/verify-deb.sh` then creates a release tagged with the Checkmk version
 (`2.3.0p49`) pointing at the commit that built it, carrying the `.deb` and its
 `.sha256`. Choose `draft` to look it over before it goes public.
 
-Doing it this way round matters because the build takes hours. Publishing the
-release first would leave it empty for all of them, and empty for good if the
-build failed. Re-running a version that already has a release replaces its
-assets rather than failing at the end of a long build.
 
 The `.sha256` is uploaded beside the `.deb` because `checkmk_build` fetches
 `${DEB_URL}.sha256` and pipes it through `sha256sum -c -`.
@@ -206,170 +269,3 @@ is recorded in the job summary and in the release notes, alongside a link to the
 run that produced the package. The build itself is not bit-reproducible (the
 container runs `apt-get upgrade`, and the image installs unpinned Debian and
 NodeSource packages); what is reproducible is the account of how it was made.
-
-## How it works
-
-1. **fetch-src** — download the official `check-mk-raw-<ver>.cre.tar.gz`.
-2. **fetch-donor-deb** — download the amd64 *Cloud* edition package. The Windows
-   agent binaries cannot be built on Linux/ARM, so they are lifted from there;
-   this is what the upstream ARM recipe has always done.
-3. **seed-distdir** — repackage snap7 from its SourceForge `.7z` (upstream ships
-   no `.tar.gz` since 1.4.2 and Checkmk's own mirror is unreachable from
-   outside), adding an aarch64 build profile, and hand it to Bazel via
-   `--distdir`.
-4. **patch** — apply `<minor>/patches/` in `series` order. Each patch is dry-run
-   immediately before being applied and the first failure aborts the build.
-5. **venv** and **frontend** (2.4 only) — have Bazel create the build venv with
-   `uv`, and build `packages/cmk-frontend{,-vue}/dist` with npm. Both are inputs
-   `make deb` needs and neither is in the release tarball any more.
-6. **build-deb** — `debuild` in `omd/`, which compiles everything and produces
-   the package.
-7. **collect** — copy the package into `debs/` beside a `.sha256`.
-
-See [`2.3.0/patches/README.md`](2.3.0/patches/README.md) and
-[`2.4.0/patches/README.md`](2.4.0/patches/README.md) for what each patch does and
-when it can be dropped. Patches numbered `0001-0099` are genuine architecture
-fixes and are suitable to offer upstream to Checkmk.
-
-### What is different about 2.4
-
-The 2.4 recipe is the 2.3 one carried forward, but upstream moved enough between
-the two that half the patch set had to be re-derived rather than re-cut. The
-per-patch detail is in [`2.4.0/patches/README.md`](2.4.0/patches/README.md); the
-structural differences are:
-
-- **bzlmod.** 2.3 was `WORKSPACE`-only with Bazel 6.5. 2.4 has `MODULE.bazel` and
-  a checked-in `MODULE.bazel.lock`, pins Bazel 7.5.0 in `.bazelversion` and then
-  overrides it in `.bazeliskrc` with `aspect/2025.11.0`.
-- **The tarball's missing dotfiles matter much more.** `make dist` packs the
-  tree with `tar ... * .werks`, and a shell glob skips dotfiles — so every
-  *root* dotfile is absent from the release tarball. For 2.3 that cost only
-  `.bazelversion`. For 2.4 it also costs `.bazelrc`, without which the build
-  loses `--@//:filesystem_layout=lsb` and every omd package fails its `select()`.
-  All three are restored verbatim from `2.4.0/files/`, and our own Bazel settings
-  go into `/etc/ci.bazelrc` — the last `try-import` in upstream's `.bazelrc`, and
-  so the only rc file that can override it. See [`2.4.0/bazelrc.local`](2.4.0/bazelrc.local).
-- **A C++ toolchain is registered now**, and it is x86-64-constrained. Without a
-  patch, resolution falls back to Bazel's auto-detected toolchain, which builds
-  but drops `-std=c++20`.
-- **The hermetic Python is pinned by URL for x86-64 only**, so aarch64 has no
-  interpreter at all until a matching `single_version_platform_override` is added.
-- **Two things the tarball used to contain are now build steps**: the frontend
-  (`packages/cmk-frontend{,-vue}/dist`, built with npm — node 22 and npm 10.9 are
-  enforced by `engine-strict`) and the Rust agent binaries
-  (`agents/linux/{cmk-agent-ctl,mk-sql}`, built for `$(uname -m)`-musl).
-- **`pipenv` is gone.** The build venv is created by Bazel through `rules_uv`,
-  and it is a genuine `make deb` dependency via `doc/plugin-api`, so it gets its
-  own stage.
-- **New packages**: `erlang` (built from an OTP git commit — the longest single
-  package), `rabbitmq` (architecture-independent) and `jaeger` (a prebuilt
-  binary, repointed at the arm64 release asset).
-- **trixie's OpenSSL is newer than the one Checkmk bundles.** The Bazel actions
-  that build `python3-modules` put Checkmk's OpenSSL 3.0.21 first on
-  `LD_LIBRARY_PATH`, and trixie's `libcurl` needs `OPENSSL_3.2/3.3` symbols that
-  3.0.21 does not export — so *any* system binary linking libcurl is unusable
-  inside those actions. That is why the image installs Kitware's statically
-  linked `cmake` over `/usr/bin/cmake`. Upstream builds on Ubuntu, whose system
-  OpenSSL is 3.0.x, and never sees it.
-- **Six of the patches are not architecture fixes at all** — they are the price
-  of building from a release tarball rather than a git checkout, as root, with a
-  resumable tree. Three of those fix install steps that work once and fail the
-  second time; upstream never runs them twice because their builds always start
-  clean.
-
-## Consuming the result
-
-[`docker/`](docker/) wraps the package into a runnable image, published to GHCR:
-
-```
-docker pull ghcr.io/<owner>/checkmk-community-arm:2.3.0p49
-```
-
-[`.github/workflows/docker-image.yml`](.github/workflows/docker-image.yml) is a
-`workflow_call` workflow that both build workflows invoke, so 2.2 and 2.3+ share
-one image recipe. It runs only on a release run, because it fetches the package
-**from the GitHub release** rather than from the build job's artifact — that
-exercises the same path a user takes, so a release whose assets are missing or
-corrupt fails there rather than in somebody's `docker build`. The `.sha256` is
-checked before the package is used. Draft releases work too; the download goes
-through `gh`, whose token can see them.
-
-`docker/version.sh` is the single source of truth for the version, the distro
-and the tag set, all derived from the `.deb`'s own filename — which is why the
-workflow downloads the asset by glob rather than by a name it builds itself.
-Passing the release tag in as `GIT_TAG` makes it refuse to publish a package
-whose version disagrees with the release being built.
-
-Each build publishes two tags, the patch level and its series (`2.3.0p49` and
-`2.3.0`). No `latest`: only the newest supported line could honestly claim it,
-and this also builds end-of-life 2.2 and, on demand, older patch levels. Note
-that the series tag has the same hazard in miniature — rebuilding an older patch
-level moves `2.3.0` backwards.
-
-The base distro must match the one the package was built for, since the
-dependencies are distro-specific (bookworm pulls `libperl5.36`, trixie
-`libperl5.40`); it is the `DISTRO_CODE` build arg, read out of the `.deb` name.
-
-`docker/` comes from
-[`checkmk_build`](https://github.com/check-mk-arm/checkmk_build) and is a
-verbatim copy of it — that repository's GitLab ancestry is no longer tracked.
-Changes belong here now.
-
-## Caveats
-
-- Community-built and **not supported or endorsed by Checkmk**. Do not report
-  problems with these packages to Checkmk.
-- The bundled **Windows agent binaries are x86-64** by construction. They are
-  shipped for deployment to Windows hosts and never run on the server.
-- **`navicli`** (EMC storage) is dropped — prebuilt x86-only binaries with no
-  aarch64 equivalent.
-
-## Measured build cost (4x Neoverse-N1, 23 GB RAM, no swap)
-
-### Checkmk 2.3.0p49
-
-| | Cold | Warm (fresh source tree, populated Bazel cache) |
-| --- | --- | --- |
-| Wall clock | ~2 h 45 m of compute across the debugging run | **19 minutes** |
-| Peak container RSS | 5.3 GiB | 5.3 GiB |
-| Bazel cache | 8.5 GB | 8.5 GB (reused) |
-| Source tree after build | 6.0 GB | 6.0 GB |
-| distdir | 12 MB | 12 MB |
-| Builder image | 8.0 GB | — |
-| Output package | 195 MB | 194 MB |
-
-The single most expensive item is `grpcio`, which has no aarch64 wheel and takes
-~35 minutes to compile — twice, because Bazel builds python3-modules in both the
-target and exec configurations.
-
-### Checkmk 2.4.0p35
-
-| | Cold | Warm (fresh source tree, populated Bazel cache) |
-| --- | --- | --- |
-| Wall clock | ~4 h 50 m of compute across the debugging run | **20 minutes** |
-| Bazel cache | 17 GB | 17 GB (reused) |
-| Source tree after build | 4.9 GB | 4.9 GB |
-| distdir | 69 MB | 69 MB |
-| Builder image | 5.0 GB | — |
-| Output package | 245 MB | 242 MB |
-
-2.4 costs roughly twice what 2.3 did, and the Bazel cache doubles, because more
-of the tree moved into Bazel: `erlang` is compiled from an OTP git commit (~11
-minutes, largely single-threaded), the frontend is built with npm here rather
-than shipped prebuilt, and `python3-modules` now also drags in a hermetic CPython
-plus a Rust toolchain. The warm figure is what matters for CI and it is
-unchanged.
-
-Both warm figures are a **full `./run.sh build`** — source tree dropped, all
-patches re-applied, package rebuilt and re-verified — not a resumed run.
-
-Note the two packages differ in size: the build is **not** byte-reproducible
-(timestamps and archive ordering), so do not diff checksums across builds.
-
-**Implication for CI:** a warm build is ~20 minutes, so a runner with a
-persistent volume for `/root/.cache` and `distdir/` is sufficient; no dedicated
-long-lived machine is needed. Budget ~25 GB for the cache plus the source tree,
-and note that changing anything Bazel sees as an action input — notably `PATH`,
-which `scripts/run-bazel.sh` forwards via `--action_env` — invalidates the whole
-cache and forces a cold build. `2.4.0/bazelrc.local` extends that `PATH` on
-purpose (to expose Rust), so edit it only when you mean to pay for a cold build.
