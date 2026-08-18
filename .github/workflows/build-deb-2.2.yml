@@ -46,8 +46,7 @@ on:
           - draft # create the release as a draft, to publish by hand
           - publish # create and publish it
 
-permissions:
-  contents: write # to create the release and its tag
+permissions: {}
 
 concurrency:
   # Never cancel a dispatch, which may cut a release; a superseded branch push
@@ -61,6 +60,8 @@ jobs:
     timeout-minutes: 350 # the hard cap is 360
     outputs:
       version: ${{ steps.resolve.outputs.version }}
+    permissions:
+        contents: write # to create the release and its tag
     env:
       # Used when nothing else supplies a version, i.e. a push to ci-2.2/**.
       # p47 is 2.2's last patch level, and the only one this is really for.

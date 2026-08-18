@@ -32,8 +32,7 @@ on:
           - draft # create the release as a draft, to publish by hand
           - publish # create and publish it
 
-permissions:
-  contents: write # to create the release and its tag
+permissions: {}
 
 concurrency:
   # Two dispatches for different versions are different work, so key on the
@@ -47,6 +46,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 350 # the hard cap is 360
+    permissions:
+      contents: write # to create the release and its tag
     outputs:
       version: ${{ steps.resolve.outputs.version }}
     env:
