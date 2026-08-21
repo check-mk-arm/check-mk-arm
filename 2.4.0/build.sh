@@ -95,7 +95,7 @@ export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
 export BAZEL_EXTRA_ARGS="${BAZEL_EXTRA_ARGS:-}"
 
 STAGES=(fetch-src unpack-src fetch-donor-deb seed-distdir seed-perl-modules patch
-	windows-artifacts venv frontend build-deb collect)
+	donor-artifacts venv frontend build-deb collect)
 
 # ------------------------------------------------------------------ stages ---
 
@@ -194,25 +194,45 @@ do_patch() {
 	apply_patches "$SRC" "$PATCHDIR"
 }
 
-# The donor's agents/windows is *merged* into the tree's rather than replacing
-# it, which is what the 2.3 recipe (and every recipe before it) did. The two
-# sets are not the same: only the tarball has check_mk.yml and the standalone
-# .exe agents, and only the Cloud deb has the .msi, python-3.cab,
-# windows_files_hashes.txt, check_mk.user.yml and unsign-msi.patch that
-# artifacts.make lists as required build inputs.
-do_windows_artifacts() {
+# Two sets of prebuilt payloads that the release tarball does not carry and that
+# cannot be produced here:
+#
+#   * agents/windows/* — the Windows agent is built on a Windows node. The
+#     donor's copy is *merged* into the tree's rather than replacing it, which
+#     is what the 2.3 recipe (and every recipe before it) did: the two sets are
+#     not the same. Only the tarball has check_mk.yml and the standalone .exe
+#     agents, and only the Cloud deb has the .msi, python-3.cab,
+#     windows_files_hashes.txt, check_mk.user.yml and unsign-msi.patch that
+#     artifacts.make lists as required build inputs.
+#   * agents/check-mk-agent{-$VER-1.noarch.rpm,_$VER-1_all.deb} — the *x86-64*
+#     Linux agent packages, i.e. what the site's agent download page serves and
+#     what the bakery hands out for x86 hosts. artifacts.make groups them with
+#     agents/linux/* under SOURCE_BUILT_LINUX_AGENTS, "created ... by an
+#     upstream job or while creating the source package", but the tarball ships
+#     neither. Both rules that would produce them — the root Makefile's
+#     `$(SOURCE_BUILT_LINUX_AGENTS): $(MAKE) -C agents $@` and the identical one
+#     in omd/packages/check_mk/check_mk.make — declare no prerequisites, so a
+#     file that is already in place is left alone and only a missing one is
+#     built here. Built here is the wrong answer: agents/Makefile names them
+#     _all/noarch unconditionally while filling them with this host's
+#     cmk-agent-ctl and mk-sql, which patch 0009 compiles for aarch64 — an
+#     "architecture-independent" package that runs on no x86 host at all.
+#
+# Both are architecture-independent from this package's point of view: they are
+# shipped for deployment to other hosts and never run on the server.
+do_donor_artifacts() {
 	local work="$BUILD_ROOT/tmp/donor"
 	rm -rf "$work"
 	mkdir -p "$work"
 
 	(cd "$work" && ar x "$DONOR_DEB" && tar -I zstd -xf data.tar.zst)
 
-	local wsrc="$work/opt/omd/versions/${VERSION}.cce/share/check_mk/agents/windows"
-	[ -d "$wsrc" ] || die "windows agents not found at $wsrc"
+	local share="$work/opt/omd/versions/${VERSION}.cce/share/check_mk/agents"
+	[ -d "$share/windows" ] || die "windows agents not found at $share/windows"
 
 	local wdir="$SRC/agents/windows"
 	mkdir -p "$wdir"
-	cp -a "$wsrc"/. "$wdir"/
+	cp -a "$share/windows"/. "$wdir"/
 
 	local f
 	for f in check_mk_agent.msi python-3.cab windows_files_hashes.txt \
@@ -220,8 +240,28 @@ do_windows_artifacts() {
 		[ -s "$wdir/$f" ] || die "artifacts.make requires agents/windows/$f, which the donor did not provide"
 	done
 
+	# Copied individually rather than by glob, so a renamed or missing artifact
+	# is an error in this stage and not an empty agent download page four hours
+	# later. Unlike 2.5 there is no aarch64 pair to sit beside them — that
+	# arrived upstream with werk #19275 — so agents/linux/cmk-agent-ctl, which
+	# patch 0009 builds for aarch64, is deliberately left as it is: it is what an
+	# arm64 monitored host gets.
+	#
+	# `install`, not `cp -a`: check_mk.make's intermediate install lists these
+	# two as prerequisites, and the donor's mtimes are older than any stamp a
+	# previous build-deb left behind — so preserving them would let a *resumed*
+	# build keep the agent packages it had already baked in.
+	local p
+	for p in "check-mk-agent-${VERSION}-1.noarch.rpm" \
+		"check-mk-agent_${VERSION}-1_all.deb"; do
+		[ -s "$share/$p" ] ||
+			die "the donor package has no $p — the x86-64 Linux agent packages cannot be lifted"
+		install -m 644 "$share/$p" "$SRC/agents/$p"
+	done
+
 	rm -rf "$work"
 	log "  windows agents: $(ls "$wdir" | tr '\n' ' ')"
+	log "  agent packages: $(cd "$SRC/agents" && ls check-mk-agent[-_]"$VERSION"* | tr '\n' ' ')"
 }
 
 # Put back the files the release tarball drops but the build needs. These are

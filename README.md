@@ -93,12 +93,11 @@ Changes belong here now.
   aarch64 equivalent.
 - **The Linux agent packages are the official x86-64 ones**, taken from the
   donor rather than rebuilt, so an arm64 server monitors x86 hosts exactly as an
-  official server does. From 2.5 the arm64 agent packages upstream added in werk
-  #19275 sit beside them. **2.4 is the exception**: it builds them here, and
-  because `cmk-agent-ctl` and `mk-sql` are compiled for the build host there,
-  its `_all.deb`/`noarch.rpm` contain **aarch64** binaries under an
-  architecture-independent name — they will not run on an x86 host. Use the
-  official agent packages from `checkmk.com` for x86 hosts on 2.4.
+  official server does. Left to build them here, `agents/Makefile` would name
+  them `_all`/`noarch` while filling them with this host's binaries. From 2.5
+  the arm64 agent packages upstream added in werk #19275 sit beside them; 2.4
+  has no such pair, and there `agents/linux/cmk-agent-ctl` stays aarch64 — it is
+  what an arm64 monitored host gets.
 
 
 ## Building

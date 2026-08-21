@@ -114,6 +114,37 @@ Our own Bazel settings are *not* merged into that copy. They go into
 — the only rc file that can override the settings above it. See
 `../bazelrc.local`.
 
+## Prebuilt payloads the tarball omits (lifted from the donor package)
+
+Two sets, both handled by `build.sh`'s `donor-artifacts` stage:
+
+- **`agents/windows/`** — the `.msi`, `python-3.cab`, `windows_files_hashes.txt`,
+  `check_mk.user.yml` and `unsign-msi.patch` that `artifacts.make` lists as
+  required build inputs. The Windows agent is built on a Windows node; this is
+  what every ARM recipe has always done. The donor's copy is *merged* into the
+  tree's rather than replacing it: only the tarball has `check_mk.yml` and the
+  standalone `.exe` agents.
+- **`agents/check-mk-agent-<ver>-1.noarch.rpm`** and
+  **`agents/check-mk-agent_<ver>-1_all.deb`** — the x86-64 Linux agent packages,
+  i.e. what the site's agent download page serves and what the bakery starts
+  from. `artifacts.make` puts them in `SOURCE_BUILT_LINUX_AGENTS` beside
+  `agents/linux/*`, "created … by an upstream job or while creating the source
+  package", but the tarball ships neither. The two rules that would produce them
+  — the root `Makefile`'s `$(SOURCE_BUILT_LINUX_AGENTS): $(MAKE) -C agents $@`
+  and the identical one in `omd/packages/check_mk/check_mk.make` — declare **no
+  prerequisites**, so dropping the files in before the build is enough to stop
+  them being built. That matters because building them here is silently wrong:
+  `agents/Makefile` names them `_all`/`noarch` unconditionally while filling
+  them from `$(AGENT_CTL_GZ)` and `$(MK_SQL)`, which patch 0009 compiles for the
+  host — so this host produces an "architecture-independent" agent package
+  wrapped around **aarch64** binaries, which runs on no x86 host.
+
+  2.4 has no aarch64 pair to sit beside them; `…-1.aarch64.rpm` and
+  `…_arm64.deb` arrive upstream in 2.5 with werk #19275. `agents/linux/cmk-agent-ctl`
+  therefore stays aarch64 as patch 0009 built it — it is what an arm64 monitored
+  host gets — and `ci/verify-deb.sh` checks only that the controller inside the
+  `_all.deb` is x86-64.
+
 ## Build-environment fixes that are not patches
 
 Three failures were fixed in the builder image or in `../bazelrc.local` rather
