@@ -124,7 +124,7 @@ Our own Bazel settings are *not* merged into that copy. They go into
 
 ## Prebuilt payloads the tarball omits (lifted from the donor package)
 
-Two sets, both handled by `build.sh`'s `donor-artifacts` stage:
+Three sets, all handled by `build.sh`'s `donor-artifacts` stage:
 
 - **`agents/windows/`** — the `.msi`, `python-3.cab`, `windows_files_hashes.txt`,
   `check_mk.user.yml` and `unsign-msi.patch`, all of which
@@ -136,3 +136,17 @@ Two sets, both handled by `build.sh`'s `donor-artifacts` stage:
   monitored hosts*; `agents/Makefile` builds them through Bazel's musl
   toolchains, which resolve only on an x86-64 exec platform. Taking them from
   the donor gives byte-identical payloads to the official build.
+- **`agents/check-mk-agent-<ver>-1.noarch.rpm`** and
+  **`agents/check-mk-agent_<ver>-1_all.deb`** — the x86-64 Linux agent packages,
+  i.e. what the site's agent download page serves and what the bakery starts
+  from. `artifacts.make` puts them in `SOURCE_BUILT_LINUX_AGENTS` beside
+  `agents/linux/*`, "created … by an upstream job or while creating the source
+  package", but unlike the **aarch64** pair — `…-1.aarch64.rpm` and
+  `…_arm64.deb`, new in 2.5 with werk #19275 — they are *not* in the tarball.
+  `agents/BUILD` globs all four with `allow_empty = True`, so their absence is
+  silent: the package builds, installs, and simply cannot deploy a DEB or RPM
+  agent to anything but arm64. Building them here is not an alternative —
+  `agents/Makefile` names them `_all`/`noarch` unconditionally, so on this host
+  it would produce an "architecture-independent" package wrapped around an
+  aarch64 `cmk-agent-ctl`. `ci/verify-deb.sh` now checks both the presence of
+  all four and the architecture of the controller inside the `_all.deb`.

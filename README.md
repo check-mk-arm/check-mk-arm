@@ -91,6 +91,14 @@ Changes belong here now.
   shipped for deployment to Windows hosts and never run on the server.
 - **`navicli`** (EMC storage) is dropped — prebuilt x86-only binaries with no
   aarch64 equivalent.
+- **The Linux agent packages are the official x86-64 ones**, taken from the
+  donor rather than rebuilt, so an arm64 server monitors x86 hosts exactly as an
+  official server does. From 2.5 the arm64 agent packages upstream added in werk
+  #19275 sit beside them. **2.4 is the exception**: it builds them here, and
+  because `cmk-agent-ctl` and `mk-sql` are compiled for the build host there,
+  its `_all.deb`/`noarch.rpm` contain **aarch64** binaries under an
+  architecture-independent name — they will not run on an x86 host. Use the
+  official agent packages from `checkmk.com` for x86 hosts on 2.4.
 
 
 ## Building
@@ -216,6 +224,13 @@ runs locally as well:
   they are lifted from the donor rather than built. A minor without a curated
   list is held only to the `agents/`-path rule and has what it found recorded in
   the log;
+- **Linux agent packages** — the `.deb`/`.rpm` the agent download page serves are
+  present, and the `cmk-agent-ctl` *inside* the `_all.deb` is x86-64. The ELF
+  sweep cannot see into them — they are archives — and `agents/BUILD` globs them
+  with `allow_empty = True`, so both a missing one and an `_all.deb` built here
+  around an aarch64 controller are otherwise completely silent. Four are
+  expected from 2.5 (`_all.deb`/`noarch.rpm` plus `_arm64.deb`/`aarch64.rpm`),
+  two before that;
 - **Windows agents** — `check_mk_agent.msi` is present and non-empty. The payload
   is lifted from the donor package, so a donor that failed to download would
   otherwise leave a package that is complete in every other respect, installs

@@ -182,6 +182,71 @@ for f in "${foreign[@]-}"; do
 	esac
 done
 
+# ---------------------------------------------------- linux agent packages ----
+
+# The .deb/.rpm the site's agent download page offers, and what the bakery
+# builds on. They are payloads for *monitored* hosts, so an arm64 server still
+# has to ship the x86-64 ones — a Checkmk server monitors whatever architecture
+# you point it at, and dropping them would quietly turn this into an
+# arm64-hosts-only server.
+#
+# The ELF sweep above cannot see any of this: these are archives, so file(1)
+# reports them as data and never looks inside. Two distinct failures hide
+# behind that, and both have happened:
+#
+#   * absent — agents/BUILD globs the four names with allow_empty = True, so a
+#     package with none of them builds, installs and passes every other check;
+#   * present but wrong — agents/Makefile names the packages _all/noarch
+#     unconditionally, so if it is left to build them on this host it produces
+#     an "architecture-independent" package holding an aarch64 cmk-agent-ctl.
+#
+# Hence a presence check and, for the x86-64 pair, an architecture check on the
+# agent controller inside.
+step "linux agent packages"
+AGENTDIR="$VERDIR/share/check_mk/agents"
+case "$MINOR" in
+2.5.0)
+	# 2.5 is the first version to ship an aarch64 agent package as well
+	# (werk #19275); the tarball carries that pair, build.sh lifts the other.
+	EXPECTED_AGENT_PKGS=(
+		"check-mk-agent-${VERSION}-1.aarch64.rpm"
+		"check-mk-agent-${VERSION}-1.noarch.rpm"
+		"check-mk-agent_${VERSION}-1_all.deb"
+		"check-mk-agent_${VERSION}-1_arm64.deb"
+	)
+	;;
+*)
+	EXPECTED_AGENT_PKGS=(
+		"check-mk-agent-${VERSION}-1.noarch.rpm"
+		"check-mk-agent_${VERSION}-1_all.deb"
+	)
+	;;
+esac
+
+for p in "${EXPECTED_AGENT_PKGS[@]}"; do
+	[ -s "$AGENTDIR/$p" ] && pass "$p present ($(du -h "$AGENTDIR/$p" | cut -f1))" ||
+		fail "no $p in share/check_mk/agents — the agent download page cannot serve it"
+done
+
+# The controller ships gzipped inside the package and is unpacked by its
+# postinst, so this is the binary that actually runs on the monitored host.
+ALL_DEB="$AGENTDIR/check-mk-agent_${VERSION}-1_all.deb"
+if [ -s "$ALL_DEB" ]; then
+	inner=$(mktemp -d)
+	if dpkg-deb --fsys-tarfile "$ALL_DEB" |
+		tar -xO ./var/lib/cmk-agent/cmk-agent-ctl.gz 2>/dev/null |
+		gzip -dc >"$inner/cmk-agent-ctl" 2>/dev/null && [ -s "$inner/cmk-agent-ctl" ]; then
+		arch=$(file -b "$inner/cmk-agent-ctl")
+		case "$arch" in
+		*x86-64*) pass "cmk-agent-ctl inside the _all.deb is x86-64" ;;
+		*) fail "cmk-agent-ctl inside the _all.deb is not x86-64: $arch" ;;
+		esac
+	else
+		fail "could not read var/lib/cmk-agent/cmk-agent-ctl.gz out of the _all.deb"
+	fi
+	rm -rf "$inner"
+fi
+
 # --------------------------------------------------------- windows agents ----
 
 # The Windows agent payload is not built here, it is lifted out of an official

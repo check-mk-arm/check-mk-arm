@@ -134,7 +134,7 @@ do_patch() {
 	apply_patches "$SRC" "$PATCHDIR"
 }
 
-# Two sets of prebuilt agent payloads that the release tarball no longer carries
+# Three sets of prebuilt agent payloads that the release tarball does not carry
 # and that cannot be produced here:
 #
 #   * agents/windows/* — the Windows agent is built on a Windows node. The
@@ -147,9 +147,19 @@ do_patch() {
 #     platform. //agents:agents-linux lists all five by name, so they have to
 #     exist. Taking them from the donor gives byte-identical payloads to the
 #     official build rather than a second-source rebuild.
+#   * agents/check-mk-agent{-$VER-1.noarch.rpm,_$VER-1_all.deb} — the *x86-64*
+#     Linux agent packages, i.e. what the site offers for download and what the
+#     bakery hands out for x86 hosts. artifacts.make groups them with
+#     agents/linux/* under SOURCE_BUILT_LINUX_AGENTS, "created ... by an
+#     upstream job or while creating the source package", but unlike the aarch64
+#     pair they are not in the release tarball. agents/BUILD globs them with
+#     allow_empty = True, so leaving them out is silent: the package builds fine
+#     and simply cannot deploy a DEB/RPM agent to anything but arm64. Building
+#     them here is not an option either — agents/Makefile would fill them with
+#     the aarch64 payload while still calling them _all/noarch.
 #
-# Both are architecture-independent from this package's point of view: they are
-# shipped for deployment to other hosts and never run on the server.
+# All three are architecture-independent from this package's point of view: they
+# are shipped for deployment to other hosts and never run on the server.
 do_donor_artifacts() {
 	local work="$BUILD_ROOT/tmp/donor"
 	rm -rf "$work"
@@ -164,6 +174,20 @@ do_donor_artifacts() {
 	mkdir -p "$SRC/agents/windows" "$SRC/agents/linux"
 	cp -a "$share/windows"/. "$SRC/agents/windows"/
 	cp -a "$share/linux"/. "$SRC/agents/linux"/
+
+	# The aarch64 pair beside these is already in the tarball; only the x86-64
+	# one has to be lifted. Copied individually rather than by glob so a
+	# renamed or missing artifact is an error and not an empty agents page.
+	local agent_pkgs=(
+		"check-mk-agent-${VERSION}-1.noarch.rpm"
+		"check-mk-agent_${VERSION}-1_all.deb"
+	)
+	local p
+	for p in "${agent_pkgs[@]}"; do
+		[ -s "$share/$p" ] ||
+			die "the donor package has no $p — the x86-64 Linux agent packages cannot be lifted"
+		cp -a "$share/$p" "$SRC/agents/$p"
+	done
 
 	local f
 	for f in check_mk_agent.msi python-3.cab windows_files_hashes.txt \
@@ -180,6 +204,7 @@ do_donor_artifacts() {
 	rm -rf "$work"
 	log "  windows: $(ls "$SRC/agents/windows" | tr '\n' ' ')"
 	log "  linux:   $(ls "$SRC/agents/linux" | tr '\n' ' ')"
+	log "  agent packages: $(cd "$SRC/agents" && ls check-mk-agent[-_]"$VERSION"* | tr '\n' ' ')"
 }
 
 # crate_universe pins its resolution per target triple, and patch 0013 adds
