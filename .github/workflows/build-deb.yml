@@ -153,10 +153,25 @@ jobs:
         run: |
           debs="$CMK_DATA/work/$CMK_VERSION/debs"
           # Re-running a version that already has a release replaces its
-          # assets rather than failing at the very end of a long build.
+          # assets, and moves the tag onto this build's commit, rather than
+          # failing at the very end of a long build.
           if gh release view "$CMK_VERSION" >/dev/null 2>&1; then
             echo "release $CMK_VERSION already exists — replacing its assets"
             gh release upload "$CMK_VERSION" --clobber "$debs"/*
+            # gh release create is skipped below, so nothing else would move the
+            # tag off the commit of the *previous* build — leaving this run's
+            # assets under a tag that points at an older tree. That mismatch is
+            # the one thing a re-release can quietly get wrong.
+            if gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$CMK_VERSION" \
+              -f sha="$GITHUB_SHA" -F force=true >/dev/null; then
+              echo "moved tag $CMK_VERSION to $GITHUB_SHA"
+            else
+              # A draft release's tag is not a real ref until it is published,
+              # so there is nothing to move; its target is what it gets created
+              # from instead.
+              gh release edit "$CMK_VERSION" --target "$GITHUB_SHA"
+              echo "$CMK_VERSION is a draft — set its target to $GITHUB_SHA"
+            fi
             exit 0
           fi
           opts=(--target "$GITHUB_SHA")

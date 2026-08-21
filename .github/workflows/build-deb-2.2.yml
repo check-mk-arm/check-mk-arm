@@ -193,15 +193,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MODE: ${{ inputs.release }}
         run: |
-          # Re-running a version that already has a release replaces its
-          # assets rather than failing at the very end of a long build.
-          if gh release view "$CMK_VERSION" >/dev/null 2>&1; then
-            echo "release $CMK_VERSION already exists — replacing its assets"
-            gh release upload "$CMK_VERSION" --clobber "$DEBS"/*
-            exit 0
-          fi
           # A heredoc, not an inline string: the notes are markdown and the
           # indentation of this block would otherwise end up in the release.
+          # Built before the re-release branch below, which rewrites the notes
+          # of an existing release: they name the run and the commit, and a
+          # re-release that left them alone would credit the previous build.
           notes=$(cat <<EOF
           Unofficial arm64 build of Checkmk $CMK_VERSION, built from source by
           \`.github/workflows/build-deb-2.2.yml\`. Not supported or endorsed by Checkmk.
@@ -218,6 +214,29 @@ jobs:
           \`\`\`
           EOF
           )
+          # Re-running a version that already has a release replaces its
+          # assets, notes and tag rather than failing at the very end of a
+          # long build.
+          if gh release view "$CMK_VERSION" >/dev/null 2>&1; then
+            echo "release $CMK_VERSION already exists — replacing its assets"
+            gh release upload "$CMK_VERSION" --clobber "$DEBS"/*
+            gh release edit "$CMK_VERSION" --notes "$notes"
+            # gh release create is skipped below, so nothing else would move the
+            # tag off the commit of the *previous* build — leaving this run's
+            # assets under a tag that points at an older tree. That mismatch is
+            # the one thing a re-release can quietly get wrong.
+            if gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$CMK_VERSION" \
+              -f sha="$GITHUB_SHA" -F force=true >/dev/null; then
+              echo "moved tag $CMK_VERSION to $GITHUB_SHA"
+            else
+              # A draft release's tag is not a real ref until it is published,
+              # so there is nothing to move; its target is what it gets created
+              # from instead.
+              gh release edit "$CMK_VERSION" --target "$GITHUB_SHA"
+              echo "$CMK_VERSION is a draft — set its target to $GITHUB_SHA"
+            fi
+            exit 0
+          fi
           opts=(--target "$GITHUB_SHA")
           if [ "$MODE" = draft ]; then opts+=(--draft); fi
           gh release create "$CMK_VERSION" "${opts[@]}" \
