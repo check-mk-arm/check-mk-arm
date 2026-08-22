@@ -119,11 +119,14 @@ cmd_build() {
 	elif [ -t 0 ]; then
 		flags=(-it)
 	fi
-	# CI is forwarded because build.sh turns the Bazel disk cache off when it
-	# is set: on a runner every build is cold, so the cache is 12 GB of pure
+	# The runner's CI=true is forwarded under our own name, never as CI
+	# As upstream build scripts may read it.
+	#
+	# 2.5.0/build.sh is the only recipe that reads it, to turn the Bazel disk
+	# cache off: on a runner every build is cold, so the cache is 12 GB of pure
 	# overhead against a disk budget that has none to spare.
 	docker exec "${flags[@]}" "$CONTAINER" \
-		bash -lc "CMK_VERSION=$VERSION CI=${CI:-} /opt/build-mk/recipe/build.sh $*"
+		bash -lc "CMK_VERSION=$VERSION CMK_CI=${CI:-} /opt/build-mk/recipe/build.sh $*"
 	[ "${flags[0]:-}" = "-d" ] && echo "detached — follow with: $0 logs"
 	return 0
 }

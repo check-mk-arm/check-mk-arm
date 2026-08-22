@@ -376,7 +376,6 @@ do_build_deb() {
 	DEBFULLNAME="$DEBFULLNAME" DEBEMAIL="$DEBEMAIL" debuild \
 		--preserve-envvar="BAZEL_*" \
 		--preserve-envvar="MAKE" \
-		--preserve-envvar="CI" \
 		--preserve-envvar="RUSTUP_HOME" \
 		--preserve-envvar="CARGO_HOME" \
 		--preserve-envvar="NODE_OPTIONS" \

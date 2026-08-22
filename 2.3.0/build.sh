@@ -270,7 +270,6 @@ do_build_deb() {
 		--preserve-envvar="NEXUS_*" \
 		--preserve-envvar="BAZEL_*" \
 		--preserve-envvar="MAKE" \
-		--preserve-envvar="CI" \
 		--preserve-envvar="RUSTUP_HOME" \
 		--preserve-envvar="CARGO_HOME" \
 		--preserve-envvar="USE_EXTERNAL_PIPENV_MIRROR" \

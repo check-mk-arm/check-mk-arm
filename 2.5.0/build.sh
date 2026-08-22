@@ -299,10 +299,13 @@ install_bazelrc() {
 	# against ~36 GB used with the cache on), so switch it off there. An empty
 	# path is how Bazel disables it; both the plain and the :linux form are
 	# needed for the same reason bazelrc.local sets both.
-	if [ "${CI:-}" = true ]; then
+	# CMK_CI, not CI: run.sh renames the runner's variable on the way in so that
+	# no upstream makefile can key off it (check_mk.make refuses to build the
+	# source-stage agents when CI is set).
+	if [ "${CMK_CI:-}" = true ]; then
 		printf '%s\n' \
 			'' \
-			'# appended by build.sh because CI=true' \
+			'# appended by build.sh because CMK_CI=true' \
 			'common --disk_cache=' \
 			'common:linux --disk_cache=' \
 			>>/etc/ci.bazelrc
@@ -348,7 +351,11 @@ log "Checkmk $VERSION ($EDITION) — arm64 / trixie"
 log "src=$SRC"
 
 install_bazelrc
-log "installed /etc/ci.bazelrc${CI:+ (CI=$CI — Bazel disk cache off)}"
+if [ "${CMK_CI:-}" = true ]; then
+	log "installed /etc/ci.bazelrc (CMK_CI=true — Bazel disk cache off)"
+else
+	log "installed /etc/ci.bazelrc"
+fi
 
 wanted() {
 	[ -z "$ONLY" ] && return 0
